@@ -81,7 +81,7 @@
                                                        TextAlignment="Right" VerticalAlignment="Center"
                                                        Margin="0,0,6,0"/>
 
-                                            <TextBox Grid.Column="3" Text="{Binding OverrideRate, TargetNullValue=''}"
+                                            <TextBox Grid.Column="3" Text="{Binding OverrideRate, TargetNullValue='', UpdateSourceTrigger=PropertyChanged}"
                                                      FontSize="12" Background="#0a0a2e" Foreground="#ffaa33"
                                                      TextAlignment="Right" BorderBrush="#333"
                                                      MinWidth="50" MaxWidth="85"
