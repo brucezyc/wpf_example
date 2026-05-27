@@ -114,7 +114,7 @@
                             <ColumnDefinition Width="160"/>
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock Grid.Column="0" Text="◀ Left Y:" ForeGround="#8899aa" FontSize="12"
+                        <TextBlock Grid.Column="0" Text="◀ Left Y:" Foreground="#8899aa" FontSize="12"
                                    VerticalAlignment="Center" Margin="0,0,6,0"/>
                         <ComboBox Grid.Column="1" ItemsSource="{Binding AvailableSeries}"
                                   SelectedItem="{Binding LeftYSeries, UpdateSourceTrigger=PropertyChanged}"

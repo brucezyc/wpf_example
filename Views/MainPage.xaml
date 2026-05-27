@@ -24,7 +24,7 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0">
                     <TextBlock Text="Quant Desktop" FontSize="28" FontWeight="Bold" Foreground="White"/>
-                    <TextBlock Text="FX Curve Analysis &amp; Pricing Platform" FontSize="14" ForeGround="#667" Margin="0,4,0,0"/>
+                    <TextBlock Text="FX Curve Analysis &amp; Pricing Platform" FontSize="14" Foreground="#667" Margin="0,4,0,0"/>
                 </StackPanel>
                 <TextBlock Grid.Column="1" Text="{Binding AppVersion}" Foreground="#445" FontSize="12"
                            VerticalAlignment="Bottom" Margin="0,0,0,6"/>
