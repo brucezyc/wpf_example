@@ -89,11 +89,18 @@ public partial class OverridePanelViewModel : ObservableObject
         var fwdSeries = snapshot.Series.FirstOrDefault(s => s.Name == "Instantaneous Forward Rate");
         if (fwdSeries == null) return;
 
-        // Only update default (non-custom) tenors — custom ones keep user-set rate
-        int defaultCount = Math.Min(_defaultTenorLabels.Length, fwdSeries.Values.Count);
-        for (int i = 0; i < Tenors.Count && i < defaultCount; i++)
+        // Build label→rate lookup from snapshot
+        var rateMap = new System.Collections.Generic.Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i < _defaultTenorLabels.Length && i < fwdSeries.Values.Count; i++)
         {
-            Tenors[i].CurrentRate = fwdSeries.Values[i];
+            rateMap[_defaultTenorLabels[i]] = fwdSeries.Values[i];
+        }
+
+        // Update by label match (handles removed/reordered tenors)
+        foreach (var tenor in Tenors)
+        {
+            if (rateMap.TryGetValue(tenor.Label, out double rate))
+                tenor.CurrentRate = rate;
         }
 
         OriginalXml = GenerateCurveXml(snapshot);
@@ -136,7 +143,6 @@ public partial class OverridePanelViewModel : ObservableObject
     private void RemoveTenor(TenorOverrideItem? tenor)
     {
         if (tenor == null) return;
-        if (!tenor.IsCustom) return; // cannot remove default tenors
         Tenors.Remove(tenor);
     }
 

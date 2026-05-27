@@ -61,7 +61,7 @@
                                                 <ColumnDefinition Width="*"/>
                                             </Grid.ColumnDefinitions>
 
-                                            <!-- Remove button (custom tenors only) -->
+                                            <!-- Remove button -->
                                             <Button Grid.Column="0" Content="×"
                                                     Command="{Binding DataContext.RemoveTenorCommand,
                                                         RelativeSource={RelativeSource AncestorType=TabControl}}"
@@ -70,18 +70,8 @@
                                                     Background="Transparent" BorderThickness="0"
                                                     Foreground="#c44" Padding="1" Margin="0,0,3,0"
                                                     Width="18" Height="18" Cursor="Hand"
-                                                    ToolTip="Remove this tenor">
-                                                <Button.Style>
-                                                    <Style TargetType="Button">
-                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsCustom}" Value="True">
-                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Button.Style>
-                                            </Button>
+                                                    ToolTip="Remove this tenor"
+                                                    Visibility="Visible"/>
 
                                             <TextBlock Grid.Column="1" Text="{Binding Label}"
                                                        Foreground="#aaa" FontSize="12" VerticalAlignment="Center"/>
