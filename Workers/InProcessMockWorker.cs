@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using WpfPlotMvp.Protocols;
@@ -8,8 +9,6 @@ namespace WpfPlotMvp.Workers;
 
 /// <summary>
 /// Dev-mode worker: runs in-process with mock data.
-/// No Solace, no named pipe, no external dependency DLL.
-/// Replaces with NamedPipeWorkerClient when integrating real backend.
 /// </summary>
 public class InProcessMockWorker : IWorkerClient
 {
@@ -19,14 +18,18 @@ public class InProcessMockWorker : IWorkerClient
 
     private readonly MockCurveGenerator _generator = new();
     private CancellationTokenSource? _cts;
+
+    // Override state
+    private bool _overrideActive;
     private CurveSnapshot? _baseline;
+    private (int tenorIndex, double newRate)[]? _currentOverrides;
 
     public async Task StartAsync(string symbol, string configXml, CancellationToken ct)
     {
         _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
 
         EmitStatus(WorkerStatus.ConfigLoading);
-        await Task.Delay(200);  // simulate config load
+        await Task.Delay(200);
 
         _baseline = _generator.GenerateBaseline();
 
@@ -51,12 +54,56 @@ public class InProcessMockWorker : IWorkerClient
 
     public Task ApplyOverrideAsync(ApplyOverrideRequest request)
     {
-        EmitStatus(WorkerStatus.OverrideActive, $"Override: {request.OverrideType}");
+        if (_baseline == null) return Task.CompletedTask;
+
+        if (request.OverrideType == "ParamOverride")
+        {
+            // Parse "1M=4.50;10Y=2.80" payload
+            var parts = request.Payload.Split(';', StringSplitOptions.RemoveEmptyEntries);
+            var overrides = new System.Collections.Generic.List<(int idx, double rate)>();
+
+            foreach (var part in parts)
+            {
+                var kv = part.Split('=');
+                if (kv.Length != 2) continue;
+                if (!double.TryParse(kv[1], out double rate)) continue;
+
+                // Find tenor index by label
+                for (int i = 0; i < MockCurveGenerator.DefaultTenors.Length; i++)
+                {
+                    if (MockCurveGenerator.DefaultTenors[i].Label.Equals(kv[0], StringComparison.OrdinalIgnoreCase))
+                    {
+                        overrides.Add((i, rate));
+                        break;
+                    }
+                }
+            }
+
+            if (overrides.Count > 0)
+            {
+                _currentOverrides = overrides.ToArray();
+                _overrideActive = true;
+                EmitStatus(WorkerStatus.OverrideActive, $"Overrode {overrides.Count} tenors");
+            }
+        }
+        else if (request.OverrideType == "XmlSnippet")
+        {
+            // For mock: just use XML value as a flat rate for 10Y tenor
+            if (double.TryParse(request.Payload, out double rate))
+            {
+                _currentOverrides = new[] { (9, rate) }; // index 9 = 5Y
+                _overrideActive = true;
+                EmitStatus(WorkerStatus.OverrideActive, "XML override applied");
+            }
+        }
+
         return Task.CompletedTask;
     }
 
     public Task ClearOverrideAsync()
     {
+        _overrideActive = false;
+        _currentOverrides = null;
         EmitStatus(WorkerStatus.Streaming, "Override cleared");
         return Task.CompletedTask;
     }
@@ -75,11 +122,18 @@ public class InProcessMockWorker : IWorkerClient
 
         while (!ct.IsCancellationRequested)
         {
-            var snapshot = _generator.GenerateNext();
-            snapshot.Tag = "original";
+            // Generate original curve
+            var snapshot = _generator.GenerateNext("original");
             SnapshotReceived?.Invoke(this, snapshot);
 
-            // Emit a price tick from the last tenor's forward rate
+            // If override active, generate overridden curve
+            if (_overrideActive && _currentOverrides != null)
+            {
+                var overridden = _generator.ApplyOverride(snapshot, _currentOverrides);
+                SnapshotReceived?.Invoke(this, overridden);
+            }
+
+            // Price tick from last tenor
             if (snapshot.Series.Count > 0 && snapshot.Series[0].Values.Count > 0)
             {
                 double lastRate = snapshot.Series[0].Values[^1];

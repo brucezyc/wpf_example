@@ -133,27 +133,10 @@
                 </Grid>
             </Border>
 
-            <!-- Right: Override Panel Placeholder -->
+            <!-- Right: Override Panel -->
             <Border Grid.Column="1" Background="#0f0f23" CornerRadius="6" Padding="10"
                     MinWidth="280" MaxWidth="360">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-
-                    <TextBlock Grid.Row="0" Text="Override Panel" FontSize="14" FontWeight="Bold"
-                               Foreground="#ccd" Margin="0,0,0,10"/>
-
-                    <TextBlock Grid.Row="1" Text="Coming in Phase 4 — Override XML or tenor parameters to see curve impact."
-                               Foreground="#667" FontSize="12" TextWrapping="Wrap"
-                               VerticalAlignment="Center" HorizontalAlignment="Center"/>
-
-                    <Button Grid.Row="2" Content="Apply Override" IsEnabled="False"
-                            Background="#555" Foreground="#999" Padding="10,6"
-                            FontSize="13" BorderThickness="0" Margin="0,10,0,0"/>
-                </Grid>
+                <ctrls:OverridePanel DataContext="{Binding OverridePanel}"/>
             </Border>
         </Grid>
 

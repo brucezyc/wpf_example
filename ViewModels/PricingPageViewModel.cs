@@ -30,7 +30,6 @@ public partial class PricingPageViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _isStreaming;
 
-    // Available series for dropdowns
     public List<string> AvailableSeries { get; } = new()
     {
         "Instantaneous Forward Rate",
@@ -45,7 +44,6 @@ public partial class PricingPageViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string _rightYSeries = "None";
 
-    // Right axis includes "None" option
     public List<string> RightAxisOptions { get; } = new()
     {
         "None",
@@ -54,6 +52,9 @@ public partial class PricingPageViewModel : ObservableObject, IDisposable
         "Discount Factor",
         "Par Rate"
     };
+
+    // Override panel
+    public OverridePanelViewModel OverridePanel { get; } = new();
 
     // Latest snapshots for chart rendering
     private CurveSnapshot? _latestOriginal;
@@ -70,6 +71,10 @@ public partial class PricingPageViewModel : ObservableObject, IDisposable
         _worker.SnapshotReceived += OnSnapshotReceived;
         _worker.StatusChanged += OnStatusChanged;
         _worker.PriceTickReceived += OnPriceTick;
+
+        // Wire override panel
+        OverridePanel.OverrideSubmitted += OnOverrideSubmitted;
+        OverridePanel.OverrideCleared += OnOverrideCleared;
     }
 
     // ─── Commands ────────────────────────────────────────
@@ -106,21 +111,39 @@ public partial class PricingPageViewModel : ObservableObject, IDisposable
         StatusText = "Stopped";
     }
 
+    // ─── Override Handling ───────────────────────────────
+
+    private async void OnOverrideSubmitted(ApplyOverrideRequest request)
+    {
+        await _worker.ApplyOverrideAsync(request);
+        StatusText = $"Override active ({request.OverrideType})";
+    }
+
+    private async void OnOverrideCleared()
+    {
+        await _worker.ClearOverrideAsync();
+        _latestOverridden = null;
+        RequestChartUpdate();
+        StatusText = "Override cleared";
+    }
+
     // ─── Worker Event Handlers ───────────────────────────
 
     private void OnSnapshotReceived(object? sender, CurveSnapshot snapshot)
     {
         Application.Current.Dispatcher.Invoke(() =>
         {
-            if (snapshot.Tag == "original" || snapshot.Tag == "overridden")
+            if (snapshot.Tag == "original")
             {
-                if (snapshot.Tag == "original")
-                    _latestOriginal = snapshot;
-                else
-                    _latestOverridden = snapshot;
-
-                RequestChartUpdate();
+                _latestOriginal = snapshot;
+                OverridePanel.UpdateRates(snapshot);
             }
+            else if (snapshot.Tag == "overridden")
+            {
+                _latestOverridden = snapshot;
+            }
+
+            RequestChartUpdate();
         });
     }
 
@@ -145,7 +168,6 @@ public partial class PricingPageViewModel : ObservableObject, IDisposable
 
     // ─── Chart Update ────────────────────────────────────
 
-    // Reference to the chart control — set by the View
     public Action<List<CurveSnapshot>, string, string>? UpdateChartAction { get; set; }
 
     private bool _chartUpdatePending;
@@ -180,15 +202,8 @@ public partial class PricingPageViewModel : ObservableObject, IDisposable
         UpdateChartAction(snapshots, left, right);
     }
 
-    partial void OnLeftYSeriesChanged(string value)
-    {
-        PushChartUpdate();
-    }
-
-    partial void OnRightYSeriesChanged(string value)
-    {
-        PushChartUpdate();
-    }
+    partial void OnLeftYSeriesChanged(string value) => PushChartUpdate();
+    partial void OnRightYSeriesChanged(string value) => PushChartUpdate();
 
     public void Dispose()
     {
