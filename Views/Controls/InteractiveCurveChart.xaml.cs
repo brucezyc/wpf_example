@@ -138,9 +138,28 @@ public partial class InteractiveCurveChart : UserControl
         }
 
         // Update left/right axis labels
-        SetAxisLabel(plot.Axes.Left, leftSeriesName);
+        var leftLabel = leftSeriesName switch
+        {
+            "Instantaneous Forward Rate" => "Forward Rate (%)",
+            "Zero Rate" => "Zero Rate (%)",
+            "Discount Factor" => "Discount Factor",
+            "Par Rate" => "Par Rate (%)",
+            _ => leftSeriesName
+        };
+        plot.Axes.Left.Label.Text = leftLabel;
+
         if (hasRightSeries)
-            SetAxisLabel(plot.Axes.Right, rightSeriesName);
+        {
+            var rightLabel = rightSeriesName switch
+            {
+                "Instantaneous Forward Rate" => "Forward Rate (%)",
+                "Zero Rate" => "Zero Rate (%)",
+                "Discount Factor" => "Discount Factor",
+                "Par Rate" => "Par Rate (%)",
+                _ => rightSeriesName
+            };
+            plot.Axes.Right.Label.Text = rightLabel;
+        }
 
         // Customize X axis — show tenor labels as text
         ConfigureXAxis(plot, snapshots);
@@ -176,18 +195,6 @@ public partial class InteractiveCurveChart : UserControl
         var axis = isRight ? plot.Axes.Right : plot.Axes.Left;
         axis.Min = minVal;
         axis.Max = maxVal;
-    }
-
-    private static void SetAxisLabel(ScottPlot.Axis axis, string seriesName)
-    {
-        axis.Label.Text = seriesName switch
-        {
-            "Instantaneous Forward Rate" => "Forward Rate (%)",
-            "Zero Rate" => "Zero Rate (%)",
-            "Discount Factor" => "Discount Factor",
-            "Par Rate" => "Par Rate (%)",
-            _ => seriesName
-        };
     }
 
     private static void ConfigureXAxis(Plot plot, List<CurveSnapshot> snapshots)
