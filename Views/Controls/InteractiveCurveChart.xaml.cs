@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Windows;
 using System.Windows.Controls;
 using ScottPlot;
 using WpfPlotMvp.Protocols;
@@ -9,8 +8,8 @@ using WpfPlotMvp.Protocols;
 namespace WpfPlotMvp.Views.Controls;
 
 /// <summary>
-/// Interactive curve chart wrapping ScottPlot.
-/// Shows original curve (solid blue) and optional overridden curve (dashed orange).
+/// Interactive curve chart wrapping ScottPlot 5.
+/// Shows original curve and optional overridden curve.
 /// Supports dual Y-axis — left series and right series selected independently.
 /// </summary>
 public partial class InteractiveCurveChart : UserControl
@@ -25,52 +24,32 @@ public partial class InteractiveCurveChart : UserControl
     {
         var plot = PlotControl.Plot;
 
-        // Title & labels
         plot.Title("FX Forward Curve");
         plot.XLabel("Tenor");
-
-        // Configure left Y axis
-        plot.Axes.Left.Label.Text = "";
-        plot.Axes.Left.Label.FontSize = 12;
-
-        // Configure right Y axis (hidden until used)
-        plot.Axes.Right.Label.Text = "";
-        plot.Axes.Right.Label.FontSize = 12;
-        plot.Axes.Right.IsVisible = false;
-
-        // Grid
-        plot.Grid.MajorLineWidth = 0.5f;
-        plot.Grid.MinorLineWidth = 0.2f;
-
-        // Legend
+        plot.YLabel("Rate (%)");
         plot.ShowLegend(Alignment.UpperRight);
-
-        // Set initial axis limits
+        plot.Grid.MajorLineWidth = 0.5f;
         plot.Axes.SetLimits(-0.5, 32, 0, 6);
     }
 
-    /// <summary>
-    /// Update the chart with the latest curve snapshots.
-    /// Call this from UI timer or ViewModel when new data arrives.
-    /// </summary>
     public void UpdateChart(
         List<CurveSnapshot> snapshots,
         string leftSeriesName,
         string rightSeriesName)
     {
         var plot = PlotControl.Plot;
-        plot.Clear();  // Remove all plottables
+        plot.Clear();
 
         bool hasRightSeries = !string.IsNullOrEmpty(rightSeriesName) &&
                               !rightSeriesName.Equals("None", StringComparison.OrdinalIgnoreCase);
 
-        // Show/hide right axis
         plot.Axes.Right.IsVisible = hasRightSeries;
+        if (hasRightSeries)
+        {
+            plot.Axes.Right.Label.Text = SeriesToAxisLabel(rightSeriesName);
+        }
+        plot.Axes.Left.Label.Text = SeriesToAxisLabel(leftSeriesName);
 
-        // Legend items for current display
-        var legendItems = new List<(string name, System.Drawing.Color color, LineStyle style)>();
-
-        // Plot each snapshot as a separate line
         foreach (var snapshot in snapshots)
         {
             if (snapshot == null || snapshot.TenorYearFractions.Count == 0)
@@ -78,33 +57,27 @@ public partial class InteractiveCurveChart : UserControl
 
             double[] xs = snapshot.TenorYearFractions.ToArray();
 
-            // Plot left Y-axis series
+            // Left Y-axis series
             var leftSeries = snapshot.Series.FirstOrDefault(s => s.Name == leftSeriesName);
             if (leftSeries != null && leftSeries.Values.Count == xs.Length)
             {
                 double[] ys = leftSeries.Values.Select(v => (double)v).ToArray();
                 var scatter = plot.Add.Scatter(xs, ys);
-                scatter.Axes.YAxisIndex = 0;  // Left axis
+                scatter.Axes.YAxis = plot.Axes.Left;
 
                 bool isOriginal = snapshot.Tag == "original";
-                scatter.Color = isOriginal ? System.Drawing.Color.DodgerBlue : System.Drawing.Color.OrangeRed;
-                scatter.LineStyle = isOriginal ? LineStyle.Solid : LineStyle.Dash;
-                scatter.LineWidth = isOriginal ? 2f : 2f;
-                scatter.MarkerStyle = MarkerStyle.OpenCircle;
-                scatter.MarkerSize = isOriginal ? 4f : 5f;
-                scatter.Label = isOriginal
+                scatter.Color = isOriginal
+                    ? new ScottPlot.Color(30, 144, 255)  // DodgerBlue
+                    : new ScottPlot.Color(255, 69, 0);    // OrangeRed
+                scatter.LineWidth = 2;
+                scatter.LegendText = isOriginal
                     ? $"{leftSeriesName} (original)"
                     : $"{leftSeriesName} ({snapshot.Tag})";
-
-                // Mark overridden tenors
-                if (!isOriginal)
-                {
-                    scatter.MarkerStyle = MarkerStyle.FilledDiamond;
-                    scatter.MarkerSize = 6f;
-                }
+                scatter.MarkerSize = isOriginal ? 4 : 6;
+                scatter.MarkerShape = isOriginal ? MarkerShape.FilledCircle : MarkerShape.FilledDiamond;
             }
 
-            // Plot right Y-axis series
+            // Right Y-axis series
             if (hasRightSeries)
             {
                 var rightSeries = snapshot.Series.FirstOrDefault(s => s.Name == rightSeriesName);
@@ -112,62 +85,43 @@ public partial class InteractiveCurveChart : UserControl
                 {
                     double[] ys = rightSeries.Values.Select(v => (double)v).ToArray();
                     var scatter2 = plot.Add.Scatter(xs, ys);
-                    scatter2.Axes.YAxisIndex = 1;  // Right axis
+                    scatter2.Axes.YAxis = plot.Axes.Right;
 
                     bool isOriginal = snapshot.Tag == "original";
                     scatter2.Color = isOriginal
-                        ? System.Drawing.Color.ForestGreen
-                        : System.Drawing.Color.DarkViolet;
-                    scatter2.LineStyle = isOriginal ? LineStyle.Solid : LineStyle.Dash;
+                        ? new ScottPlot.Color(60, 179, 113)  // MediumSeaGreen
+                        : new ScottPlot.Color(148, 0, 211);  // DarkViolet
                     scatter2.LineWidth = 1.5f;
-                    scatter2.MarkerStyle = MarkerStyle.OpenSquare;
-                    scatter2.MarkerSize = isOriginal ? 3f : 5f;
-                    scatter2.Label = isOriginal
+                    scatter2.LegendText = isOriginal
                         ? $"{rightSeriesName} (original)"
                         : $"{rightSeriesName} ({snapshot.Tag})";
+                    scatter2.MarkerSize = isOriginal ? 3 : 5;
+                    scatter2.MarkerShape = isOriginal ? MarkerShape.FilledSquare : MarkerShape.OpenSquare;
                 }
             }
         }
 
-        // Auto-scale Y axes with some padding
-        if (snapshots.Count > 0 && snapshots[0]?.Series.Count > 0)
-        {
-            AutoScaleY(plot, leftSeriesName, snapshots);
-            if (hasRightSeries)
-                AutoScaleY(plot, rightSeriesName, snapshots, isRight: true);
-        }
-
-        // Update left/right axis labels
-        var leftLabel = leftSeriesName switch
-        {
-            "Instantaneous Forward Rate" => "Forward Rate (%)",
-            "Zero Rate" => "Zero Rate (%)",
-            "Discount Factor" => "Discount Factor",
-            "Par Rate" => "Par Rate (%)",
-            _ => leftSeriesName
-        };
-        plot.Axes.Left.Label.Text = leftLabel;
-
+        // Auto-scale Y axes
+        AutoScaleY(plot, leftSeriesName, snapshots, isRight: false);
         if (hasRightSeries)
-        {
-            var rightLabel = rightSeriesName switch
-            {
-                "Instantaneous Forward Rate" => "Forward Rate (%)",
-                "Zero Rate" => "Zero Rate (%)",
-                "Discount Factor" => "Discount Factor",
-                "Par Rate" => "Par Rate (%)",
-                _ => rightSeriesName
-            };
-            plot.Axes.Right.Label.Text = rightLabel;
-        }
+            AutoScaleY(plot, rightSeriesName, snapshots, isRight: true);
 
-        // Customize X axis — show tenor labels as text
+        // X axis — tenor labels
         ConfigureXAxis(plot, snapshots);
 
         PlotControl.Refresh();
     }
 
-    private static void AutoScaleY(Plot plot, string seriesName, List<CurveSnapshot> snapshots, bool isRight = false)
+    private static string SeriesToAxisLabel(string seriesName) => seriesName switch
+    {
+        "Instantaneous Forward Rate" => "Forward Rate (%)",
+        "Zero Rate" => "Zero Rate (%)",
+        "Discount Factor" => "Discount Factor",
+        "Par Rate" => "Par Rate (%)",
+        _ => seriesName
+    };
+
+    private static void AutoScaleY(Plot plot, string seriesName, List<CurveSnapshot> snapshots, bool isRight)
     {
         double minVal = double.MaxValue, maxVal = double.MinValue;
         bool found = false;
@@ -184,49 +138,28 @@ public partial class InteractiveCurveChart : UserControl
                 found = true;
             }
         }
-
         if (!found) return;
 
         double padding = (maxVal - minVal) * 0.15;
         if (padding < 0.05) padding = 0.05;
-        minVal -= padding;
-        maxVal += padding;
-
         var axis = isRight ? plot.Axes.Right : plot.Axes.Left;
-        axis.Min = minVal;
-        axis.Max = maxVal;
+        axis.Min = minVal - padding;
+        axis.Max = maxVal + padding;
     }
 
     private static void ConfigureXAxis(Plot plot, List<CurveSnapshot> snapshots)
     {
         if (snapshots.Count == 0) return;
-
-        // Set X axis limits from tenor range
         var first = snapshots[0];
-        if (first.TenorYearFractions.Count > 0)
-        {
-            double minX = -0.5;
-            double maxX = first.TenorYearFractions[^1] + 2;
-            plot.Axes.SetLimitsX(minX, maxX);
-        }
+        if (first.TenorYearFractions.Count == 0) return;
 
-        // Add custom tick labels for common tenors
-        if (first.TenorLabels.Count > 0)
-        {
-            var ticks = new ScottPlot.Tick[first.TenorLabels.Count];
-            for (int i = 0; i < first.TenorLabels.Count; i++)
-            {
-                ticks[i] = new ScottPlot.Tick(first.TenorYearFractions[i], first.TenorLabels[i]);
-            }
-            plot.Axes.Bottom.SetTicks(ticks);
-            plot.Axes.Bottom.TickLabelStyle.Rotation = -45;
-            plot.Axes.Bottom.TickLabelStyle.FontSize = 10;
-        }
+        double[] positions = first.TenorYearFractions.ToArray();
+        string[] labels = first.TenorLabels.ToArray();
+        plot.Axes.Bottom.SetTicks(positions, labels);
+        plot.Axes.Bottom.TickLabelStyle.Rotation = -45;
+        plot.Axes.Bottom.TickLabelStyle.FontSize = 10;
     }
 
-    /// <summary>
-    /// Reset the chart to an empty state.
-    /// </summary>
     public void Clear()
     {
         PlotControl.Plot.Clear();
