@@ -178,7 +178,7 @@ public partial class InteractiveCurveChart : UserControl
         axis.Max = maxVal;
     }
 
-    private static void SetAxisLabel(ScottPlot.Axes.IAxis axis, string seriesName)
+    private static void SetAxisLabel(ScottPlot.Axis axis, string seriesName)
     {
         axis.Label.Text = seriesName switch
         {
