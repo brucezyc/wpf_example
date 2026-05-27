@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -7,9 +8,6 @@ using WpfPlotMvp.Services;
 
 namespace WpfPlotMvp.Workers;
 
-/// <summary>
-/// Dev-mode worker: runs in-process with mock data.
-/// </summary>
 public class InProcessMockWorker : IWorkerClient
 {
     public event EventHandler<CurveSnapshot>? SnapshotReceived;
@@ -18,16 +16,16 @@ public class InProcessMockWorker : IWorkerClient
 
     private readonly MockCurveGenerator _generator = new();
     private CancellationTokenSource? _cts;
+    private CurveSnapshot? _baseline;
 
     // Override state
     private bool _overrideActive;
-    private CurveSnapshot? _baseline;
-    private (int tenorIndex, double newRate)[]? _currentOverrides;
+    private (int tenorIndex, double newRate)[]? _overrideRate;  // tenors with new values
+    private int[]? _excludeIndices;  // tenors to remove from curve
 
     public async Task StartAsync(string symbol, string configXml, CancellationToken ct)
     {
         _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-
         EmitStatus(WorkerStatus.ConfigLoading);
         await Task.Delay(200);
 
@@ -35,10 +33,8 @@ public class InProcessMockWorker : IWorkerClient
 
         EmitStatus(WorkerStatus.ConfigLoaded);
         await Task.Delay(100);
-
         EmitStatus(WorkerStatus.Subscribing);
         await Task.Delay(100);
-
         EmitStatus(WorkerStatus.Subscribed);
         await Task.Delay(50);
 
@@ -58,74 +54,62 @@ public class InProcessMockWorker : IWorkerClient
 
         if (request.OverrideType == "ParamOverride")
         {
-            // Parse "1M=4.50;10Y=2.80" payload
             var parts = request.Payload.Split(';', StringSplitOptions.RemoveEmptyEntries);
-            var overrides = new System.Collections.Generic.List<(int idx, double rate)>();
+            var overrideList = new List<(int idx, double rate)>();
+            var excludeList = new List<int>();
 
             foreach (var part in parts)
             {
                 var kv = part.Split('=');
-                if (kv.Length != 2) continue;
-                if (!double.TryParse(kv[1], out double rate)) continue;
+                string label = kv[0].Trim();
+                int? tenorIdx = FindTenorIndex(label);
+                if (tenorIdx == null) continue;
 
-                // Find tenor index by label
-                for (int i = 0; i < MockCurveGenerator.DefaultTenors.Length; i++)
-                {
-                    if (MockCurveGenerator.DefaultTenors[i].Label.Equals(kv[0], StringComparison.OrdinalIgnoreCase))
-                    {
-                        overrides.Add((i, rate));
-                        break;
-                    }
-                }
+                if (kv.Length == 2 && double.TryParse(kv[1], out double rate))
+                    overrideList.Add(((int)tenorIdx, rate));
+                else
+                    excludeList.Add((int)tenorIdx);
             }
 
-            if (overrides.Count > 0)
-            {
-                _currentOverrides = overrides.ToArray();
-                _overrideActive = true;
-                EmitStatus(WorkerStatus.OverrideActive, $"Overrode {overrides.Count} tenors");
-            }
+            _overrideRate = overrideList.ToArray();
+            _excludeIndices = excludeList.ToArray();
+            _overrideActive = (_overrideRate.Length > 0 || _excludeIndices.Length > 0);
+
+            if (_overrideActive)
+                EmitStatus(WorkerStatus.OverrideActive,
+                    $"Override: {_overrideRate.Length} rates, {_excludeIndices.Length} removed");
         }
         else if (request.OverrideType == "XmlSnippet")
         {
-            // Parse XML to extract pillar overrides
-            var overrides = new System.Collections.Generic.List<(int idx, double rate)>();
+            var overrideList = new List<(int idx, double rate)>();
             var xml = request.Payload;
 
             foreach (var tenor in MockCurveGenerator.DefaultTenors)
             {
-                // Look for <pillar tenor="1M">value</pillar>
                 var searchStr = $"tenor=\"{tenor.Label}\"";
                 int idx = xml.IndexOf(searchStr, StringComparison.OrdinalIgnoreCase);
                 if (idx < 0) continue;
 
-                // Find the value between > and </
                 int valueStart = xml.IndexOf('>', idx + searchStr.Length);
                 int valueEnd = xml.IndexOf('<', valueStart + 1);
                 if (valueStart < 0 || valueEnd < 0) continue;
 
-                valueStart++; // skip '>'
+                valueStart++;
                 string valueStr = xml[valueStart..valueEnd].Trim();
                 if (double.TryParse(valueStr, out double rate))
                 {
-                    // Find tenor index by label
-                    for (int i = 0; i < MockCurveGenerator.DefaultTenors.Length; i++)
-                    {
-                        if (MockCurveGenerator.DefaultTenors[i].Label.Equals(tenor.Label, StringComparison.OrdinalIgnoreCase))
-                        {
-                            overrides.Add((i, rate));
-                            break;
-                        }
-                    }
+                    int? tenorIdx = FindTenorIndex(tenor.Label);
+                    if (tenorIdx != null)
+                        overrideList.Add(((int)tenorIdx, rate));
                 }
             }
 
-            if (overrides.Count > 0)
-            {
-                _currentOverrides = overrides.ToArray();
-                _overrideActive = true;
-                EmitStatus(WorkerStatus.OverrideActive, $"XML override: {overrides.Count} tenors");
-            }
+            _overrideRate = overrideList.ToArray();
+            _excludeIndices = Array.Empty<int>();
+            _overrideActive = _overrideRate.Length > 0;
+
+            if (_overrideActive)
+                EmitStatus(WorkerStatus.OverrideActive, $"XML override: {_overrideRate.Length} tenors");
         }
 
         return Task.CompletedTask;
@@ -134,7 +118,8 @@ public class InProcessMockWorker : IWorkerClient
     public Task ClearOverrideAsync()
     {
         _overrideActive = false;
-        _currentOverrides = null;
+        _overrideRate = null;
+        _excludeIndices = null;
         EmitStatus(WorkerStatus.Streaming, "Override cleared");
         return Task.CompletedTask;
     }
@@ -153,35 +138,39 @@ public class InProcessMockWorker : IWorkerClient
 
         while (!ct.IsCancellationRequested)
         {
-            // Generate original curve
             var snapshot = _generator.GenerateNext("original");
             SnapshotReceived?.Invoke(this, snapshot);
 
-            // If override active, generate overridden curve
-            if (_overrideActive && _currentOverrides != null)
+            if (_overrideActive)
             {
-                var overridden = _generator.ApplyOverride(snapshot, _currentOverrides);
+                var overridden = _generator.ApplyOverride(
+                    snapshot,
+                    _overrideRate,
+                    _excludeIndices);
                 SnapshotReceived?.Invoke(this, overridden);
             }
 
-            // Price tick from last tenor
             if (snapshot.Series.Count > 0 && snapshot.Series[0].Values.Count > 0)
             {
                 double lastRate = snapshot.Series[0].Values[^1];
                 PriceTickReceived?.Invoke(this, Math.Round(lastRate, 4));
             }
 
-            try
-            {
-                await Task.Delay(200, ct);
-            }
-            catch (OperationCanceledException)
-            {
-                break;
-            }
+            try { await Task.Delay(200, ct); }
+            catch (OperationCanceledException) { break; }
         }
 
         EmitStatus(WorkerStatus.Stopped);
+    }
+
+    private int? FindTenorIndex(string label)
+    {
+        for (int i = 0; i < MockCurveGenerator.DefaultTenors.Length; i++)
+        {
+            if (MockCurveGenerator.DefaultTenors[i].Label.Equals(label, StringComparison.OrdinalIgnoreCase))
+                return i;
+        }
+        return null;
     }
 
     private void EmitStatus(WorkerStatus status, string detail = "")

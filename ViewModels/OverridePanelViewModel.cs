@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -33,70 +34,45 @@ public class TenorOverrideItem : ObservableObject
 
     public bool IsOverridden => OverrideRate.HasValue;
 
-    public void ClearOverride()
-    {
-        OverrideRate = null;
-    }
+    public void ClearOverride() => OverrideRate = null;
 }
 
-/// <summary>
-/// ViewModel for the override panel (right side of PricingPage).
-/// Three tabs: Params (add/remove tenors), XML (view-only), XML (editable override).
-/// </summary>
 public partial class OverridePanelViewModel : ObservableObject
 {
     private readonly string[] _defaultTenorLabels =
         { "1W", "1M", "2M", "3M", "6M", "9M", "1Y", "2Y", "3Y", "5Y", "7Y", "10Y", "15Y", "20Y", "30Y" };
 
+    // Track which default tenors were removed by the user
+    private readonly HashSet<string> _removedTenorLabels = new(StringComparer.OrdinalIgnoreCase);
+
     public event Action<ApplyOverrideRequest>? OverrideSubmitted;
     public event Action? OverrideCleared;
 
-    [ObservableProperty]
-    private int _selectedTab;
+    [ObservableProperty] private int _selectedTab;
+    [ObservableProperty] private string _originalXml = "";
+    [ObservableProperty] private string _overrideXml = "";
+    [ObservableProperty] private bool _isOverrideActive;
 
-    [ObservableProperty]
-    private string _originalXml = "";
-
-    [ObservableProperty]
-    private string _overrideXml = "";
-
-    [ObservableProperty]
-    private bool _isOverrideActive;
-
-    // New-tenor input fields
-    [ObservableProperty]
-    private string _newTenorLabel = "";
-
-    [ObservableProperty]
-    private string _newTenorRate = "";
+    [ObservableProperty] private string _newTenorLabel = "";
+    [ObservableProperty] private string _newTenorRate = "";
 
     public ObservableCollection<TenorOverrideItem> Tenors { get; } = new();
 
     public OverridePanelViewModel()
     {
         foreach (var label in _defaultTenorLabels)
-        {
-            Tenors.Add(new TenorOverrideItem { Label = label, CurrentRate = 0 });
-        }
+            Tenors.Add(new TenorOverrideItem { Label = label });
     }
 
-    /// <summary>
-    /// Called by PricingPageViewModel when a new curve snapshot arrives.
-    /// Updates current rates for default tenors and regenerates XML.
-    /// </summary>
     public void UpdateRates(CurveSnapshot snapshot)
     {
         var fwdSeries = snapshot.Series.FirstOrDefault(s => s.Name == "Instantaneous Forward Rate");
         if (fwdSeries == null) return;
 
-        // Build label→rate lookup from snapshot
-        var rateMap = new System.Collections.Generic.Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        var rateMap = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         for (int i = 0; i < _defaultTenorLabels.Length && i < fwdSeries.Values.Count; i++)
-        {
             rateMap[_defaultTenorLabels[i]] = fwdSeries.Values[i];
-        }
 
-        // Update by label match (handles removed/reordered tenors)
         foreach (var tenor in Tenors)
         {
             if (rateMap.TryGetValue(tenor.Label, out double rate))
@@ -106,9 +82,7 @@ public partial class OverridePanelViewModel : ObservableObject
         OriginalXml = GenerateCurveXml(snapshot);
 
         if (string.IsNullOrEmpty(OverrideXml) && !IsOverrideActive)
-        {
             OverrideXml = OriginalXml;
-        }
     }
 
     // ─── Add / Remove Tenor ──────────────────────────────
@@ -118,22 +92,16 @@ public partial class OverridePanelViewModel : ObservableObject
     {
         string label = NewTenorLabel?.Trim() ?? "";
         if (string.IsNullOrEmpty(label)) return;
-
-        // Parse rate
-        if (!double.TryParse(NewTenorRate, out double rate))
-            rate = 0;
-
-        // Check for duplicate
-        if (Tenors.Any(t => t.Label.Equals(label, StringComparison.OrdinalIgnoreCase)))
-            return;
+        if (!double.TryParse(NewTenorRate, out double rate)) rate = 0;
+        if (Tenors.Any(t => t.Label.Equals(label, StringComparison.OrdinalIgnoreCase))) return;
 
         Tenors.Add(new TenorOverrideItem
         {
-            Label = label,
-            CurrentRate = rate,
-            OverrideRate = rate,
-            IsCustom = true
+            Label = label, CurrentRate = rate,
+            OverrideRate = rate, IsCustom = true
         });
+        // If it was previously removed from defaults, un-track it
+        _removedTenorLabels.Remove(label);
 
         NewTenorLabel = "";
         NewTenorRate = "";
@@ -143,6 +111,8 @@ public partial class OverridePanelViewModel : ObservableObject
     private void RemoveTenor(TenorOverrideItem? tenor)
     {
         if (tenor == null) return;
+        if (!tenor.IsCustom)
+            _removedTenorLabels.Add(tenor.Label);
         Tenors.Remove(tenor);
     }
 
@@ -153,15 +123,19 @@ public partial class OverridePanelViewModel : ObservableObject
     {
         if (SelectedTab == 0)
         {
-            var overrides = Tenors
-                .Where(t => t.OverrideRate.HasValue)
-                .Select(t => (t.Label, Rate: t.OverrideRate!.Value))
-                .ToList();
+            // Parts with '=' → override; without '=' → remove
+            var parts = new List<string>();
 
-            if (overrides.Count == 0) return;
+            foreach (var t in Tenors.Where(t => t.OverrideRate.HasValue))
+                parts.Add($"{t.Label}={t.OverrideRate!.Value:F4}");
 
-            var payload = string.Join(";",
-                overrides.Select(o => $"{o.Label}={o.Rate:F4}"));
+            // Add removed tenors (no '=' sign)
+            foreach (var label in _removedTenorLabels)
+                parts.Add(label);
+
+            if (parts.Count == 0) return;
+
+            var payload = string.Join(";", parts);
 
             OverrideSubmitted?.Invoke(new ApplyOverrideRequest
             {
@@ -172,7 +146,6 @@ public partial class OverridePanelViewModel : ObservableObject
         else
         {
             if (string.IsNullOrWhiteSpace(OverrideXml)) return;
-
             OverrideSubmitted?.Invoke(new ApplyOverrideRequest
             {
                 OverrideType = "XmlSnippet",
@@ -195,6 +168,17 @@ public partial class OverridePanelViewModel : ObservableObject
     {
         foreach (var tenor in Tenors)
             tenor.ClearOverride();
+
+        // Restore any removed default tenors
+        foreach (var label in _defaultTenorLabels)
+        {
+            if (_removedTenorLabels.Contains(label) &&
+                !Tenors.Any(t => t.Label.Equals(label, StringComparison.OrdinalIgnoreCase)))
+            {
+                Tenors.Add(new TenorOverrideItem { Label = label });
+            }
+        }
+        _removedTenorLabels.Clear();
 
         IsOverrideActive = false;
 
@@ -220,12 +204,8 @@ public partial class OverridePanelViewModel : ObservableObject
         sb.AppendLine("    <tau>2.5</tau>");
         sb.AppendLine("  </metadata>");
         sb.AppendLine("  <pillars>");
-
         for (int i = 0; i < fwdSeries.Values.Count && i < snapshot.TenorLabels.Count; i++)
-        {
             sb.AppendLine($"    <pillar tenor=\"{snapshot.TenorLabels[i]}\">{fwdSeries.Values[i]:F4}</pillar>");
-        }
-
         sb.AppendLine("  </pillars>");
         sb.AppendLine("</curveModel>");
         return sb.ToString();

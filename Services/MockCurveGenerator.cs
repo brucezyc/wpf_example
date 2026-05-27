@@ -77,27 +77,55 @@ public class MockCurveGenerator
     }
 
     /// <summary>
-    /// Apply tenor-level overrides and re-interpolate.
+    /// Apply tenor-level overrides and exclusions, then re-interpolate.
     /// </summary>
-    public CurveSnapshot ApplyOverride(CurveSnapshot baseline, (int tenorIndex, double newRate)[] overrides)
+    public CurveSnapshot ApplyOverride(
+        CurveSnapshot baseline,
+        (int tenorIndex, double newRate)[]? overrides,
+        int[]? excludeIndices)
     {
-        // 1. Start from baseline rates
         var baseSeries = baseline.Series.FirstOrDefault(s => s.Name == "Instantaneous Forward Rate");
         if (baseSeries == null) return baseline;
 
         double[] rates = baseSeries.Values.ToArray();
 
-        // 2. Apply overrides
-        foreach (var (idx, rate) in overrides)
+        // Apply overrides
+        if (overrides != null)
         {
-            if (idx >= 0 && idx < rates.Length)
-                rates[idx] = rate;
+            foreach (var (idx, rate) in overrides)
+            {
+                if (idx >= 0 && idx < rates.Length)
+                    rates[idx] = rate;
+            }
         }
 
-        // 3. Re-smooth: linear interpolation of gaps, then light moving-average filter
+        // Remove excluded tenors (filter in reverse to keep indices stable)
+        var excludeSet = excludeIndices != null
+            ? new System.Collections.Generic.HashSet<int>(excludeIndices)
+            : new System.Collections.Generic.HashSet<int>();
+
+        if (excludeSet.Count > 0)
+        {
+            var remaining = new System.Collections.Generic.List<double>();
+            var remainingLabels = new System.Collections.Generic.List<string>();
+            var remainingYf = new System.Collections.Generic.List<double>();
+
+            for (int i = 0; i < rates.Length; i++)
+            {
+                if (excludeSet.Contains(i)) continue;
+                remaining.Add(rates[i]);
+                remainingLabels.Add(baseline.TenorLabels[i]);
+                remainingYf.Add(baseline.TenorYearFractions[i]);
+            }
+
+            rates = remaining.ToArray();
+            // Build snapshot with fewer tenors
+            return BuildSnapshotFromRates(rates, "overridden", remainingLabels.ToArray(), remainingYf.ToArray());
+        }
+
+        // Re-smooth
         rates = SmoothOverriddenRates(rates);
 
-        // 4. Recompute derived series
         return BuildSnapshotFromRates(rates, "overridden");
     }
 
@@ -119,8 +147,15 @@ public class MockCurveGenerator
 
     private CurveSnapshot BuildSnapshotFromRates(double[] fwdRates, string tag)
     {
-        var labels = new List<string>();
-        var yearFracs = new List<double>();
+        return BuildSnapshotFromRates(fwdRates, tag,
+            DefaultTenors.Select(t => t.Label).ToArray(),
+            DefaultTenors.Select(t => t.YearFraction).ToArray());
+    }
+
+    private CurveSnapshot BuildSnapshotFromRates(double[] fwdRates, string tag, string[] labels, double[] yearFracs)
+    {
+        var labelList = new List<string>();
+        var yfList = new List<double>();
         var fwdSeries = new CurveSeries { Name = "Instantaneous Forward Rate", Unit = "%", Values = new List<double>() };
         var zeroSeries = new CurveSeries { Name = "Zero Rate", Unit = "%", Values = new List<double>() };
         var dfSeries = new CurveSeries { Name = "Discount Factor", Unit = "", Values = new List<double>() };
@@ -129,24 +164,23 @@ public class MockCurveGenerator
         double cumulativeDiscount = 1.0;
         double prevTime = 0;
 
-        for (int i = 0; i < DefaultTenors.Length; i++)
+        for (int i = 0; i < fwdRates.Length; i++)
         {
-            var (label, yearFrac) = DefaultTenors[i];
-            labels.Add(label);
-            yearFracs.Add(yearFrac);
+            string label = i < labels.Length ? labels[i] : $"T{i}";
+            double yearFrac = i < yearFracs.Length ? yearFracs[i] : (i + 1) * 0.5;
+
+            labelList.Add(label);
+            yfList.Add(yearFrac);
 
             double fwd = fwdRates[i];
             fwdSeries.Values.Add(Math.Round(fwd, 4));
 
-            // Zero rate: bootstrap from forward rates (piecewise constant)
             double dt = yearFrac - prevTime;
             cumulativeDiscount *= Math.Exp(-fwd / 100.0 * dt);
             double zeroRate = -Math.Log(cumulativeDiscount) / yearFrac * 100.0;
             zeroSeries.Values.Add(Math.Round(zeroRate, 4));
 
             dfSeries.Values.Add(Math.Round(cumulativeDiscount, 6));
-
-            // Par rate ≈ zero rate (simplified)
             parSeries.Values.Add(Math.Round(zeroRate, 4));
 
             prevTime = yearFrac;
@@ -156,8 +190,8 @@ public class MockCurveGenerator
         {
             Tag = tag,
             Timestamp = DateTime.UtcNow,
-            TenorLabels = labels,
-            TenorYearFractions = yearFracs,
+            TenorLabels = labelList,
+            TenorYearFractions = yfList,
             Series = new List<CurveSeries> { fwdSeries, zeroSeries, dfSeries, parSeries }
         };
     }
