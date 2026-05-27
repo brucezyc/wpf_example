@@ -4,7 +4,6 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:vm="clr-namespace:WpfPlotMvp.ViewModels"
-             xmlns:views="clr-namespace:WpfPlotMvp.Views"
              mc:Ignorable="d"
              d:DesignHeight="500" d:DesignWidth="800"
              d:DataContext="{d:DesignInstance vm:MainPageViewModel, IsDesignTimeCreatable=True}">
@@ -32,45 +31,74 @@
         </Border>
 
         <!-- Action Cards -->
-        <ItemsControl Grid.Row="1" Margin="30,20,30,0">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <WrapPanel Orientation="Horizontal" />
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                    <Border Background="#1a1a2e" CornerRadius="8" Padding="0" Margin="8"
-                            Width="220" Height="160" BorderBrush="#2a2a4e" BorderThickness="1">
-                        <Grid Margin="0">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Text="{Binding Title}" FontSize="18" FontWeight="Bold"
-                                       Foreground="White" Margin="16,20,16,0" TextWrapping="Wrap"/>
-                            <TextBlock Grid.Row="0" Text="{Binding Description}" FontSize="12"
-                                       Foreground="#667" Margin="16,52,16,0" TextWrapping="Wrap"/>
-                            <Button Grid.Row="1" Content="Open" Command="{Binding OpenCommand}"
-                                    Background="#007bff" Foreground="White" Padding="10,6"
-                                    Margin="16,0,16,14" BorderThickness="0" FontSize="13"
-                                    HorizontalAlignment="Stretch" Cursor="Hand"/>
-                        </Grid>
-                    </Border>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-            <ItemsControl.Items>
-                <views:MainPageActionCard Title="FX Curve Pricing"
-                                          Description="Load a model, subscribe to Solace topics, and view real-time stripped curves with interactive chart and override panel."
-                                          OpenCommand="{Binding DataContext.OpenPricingPageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
-                <views:MainPageActionCard Title="Config Viewer"
-                                          Description="View and inspect model configuration XML files."
-                                          OpenCommand="{x:Null}"/>
-                <views:MainPageActionCard Title="Topic Inspector"
-                                          Description="Look up Solace topics for a given instrument."
-                                          OpenCommand="{x:Null}"/>
-            </ItemsControl.Items>
-        </ItemsControl>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center"
+                    VerticalAlignment="Center" Margin="30,20,30,0">
+
+            <!-- Card 1: FX Curve Pricing -->
+            <Border Background="#1a1a2e" CornerRadius="8" Padding="0" Margin="8"
+                    Width="240" Height="180" BorderBrush="#2a2a4e" BorderThickness="1">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Margin="16,20,16,0">
+                        <TextBlock Text="FX Curve Pricing" FontSize="18" FontWeight="Bold"
+                                   Foreground="White" TextWrapping="Wrap"/>
+                        <TextBlock Text="Load a model, subscribe to Solace topics, and view real-time stripped curves with interactive chart and override panel."
+                                   FontSize="12" Foreground="#667" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <Button Grid.Row="1" Content="Open" Command="{Binding OpenPricingPageCommand}"
+                            Background="#007bff" Foreground="White" Padding="10,6"
+                            Margin="16,0,16,14" BorderThickness="0" FontSize="13"
+                            HorizontalAlignment="Stretch" Cursor="Hand"/>
+                </Grid>
+            </Border>
+
+            <!-- Card 2: Config Viewer -->
+            <Border Background="#1a1a2e" CornerRadius="8" Padding="0" Margin="8"
+                    Width="240" Height="180" BorderBrush="#2a2a4e" BorderThickness="1"
+                    Opacity="0.5">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Margin="16,20,16,0">
+                        <TextBlock Text="Config Viewer" FontSize="18" FontWeight="Bold"
+                                   Foreground="White" TextWrapping="Wrap"/>
+                        <TextBlock Text="View and inspect model configuration XML files."
+                                   FontSize="12" Foreground="#667" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <Button Grid.Row="1" Content="Coming Soon" IsEnabled="False"
+                            Background="#444" Foreground="#888" Padding="10,6"
+                            Margin="16,0,16,14" BorderThickness="0" FontSize="13"
+                            HorizontalAlignment="Stretch"/>
+                </Grid>
+            </Border>
+
+            <!-- Card 3: Topic Inspector -->
+            <Border Background="#1a1a2e" CornerRadius="8" Padding="0" Margin="8"
+                    Width="240" Height="180" BorderBrush="#2a2a4e" BorderThickness="1"
+                    Opacity="0.5">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Margin="16,20,16,0">
+                        <TextBlock Text="Topic Inspector" FontSize="18" FontWeight="Bold"
+                                   Foreground="White" TextWrapping="Wrap"/>
+                        <TextBlock Text="Look up Solace topics for a given instrument."
+                                   FontSize="12" Foreground="#667" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <Button Grid.Row="1" Content="Coming Soon" IsEnabled="False"
+                            Background="#444" Foreground="#888" Padding="10,6"
+                            Margin="16,0,16,14" BorderThickness="0" FontSize="13"
+                            HorizontalAlignment="Stretch"/>
+                </Grid>
+            </Border>
+        </StackPanel>
 
         <!-- Footer -->
         <TextBlock Grid.Row="2" Text="Select an action above to open a new workspace tab."
