@@ -11,6 +11,7 @@ namespace WpfPlotMvp.ViewModels;
 public class TenorOverrideItem : ObservableObject
 {
     public string Label { get; set; } = "";
+    public bool IsCustom { get; set; }
 
     private double _currentRate;
     public double CurrentRate
@@ -40,11 +41,11 @@ public class TenorOverrideItem : ObservableObject
 
 /// <summary>
 /// ViewModel for the override panel (right side of PricingPage).
-/// Three tabs: Params, XML (view-only), XML (editable override).
+/// Three tabs: Params (add/remove tenors), XML (view-only), XML (editable override).
 /// </summary>
 public partial class OverridePanelViewModel : ObservableObject
 {
-    private readonly string[] _tenorLabels =
+    private readonly string[] _defaultTenorLabels =
         { "1W", "1M", "2M", "3M", "6M", "9M", "1Y", "2Y", "3Y", "5Y", "7Y", "10Y", "15Y", "20Y", "30Y" };
 
     public event Action<ApplyOverrideRequest>? OverrideSubmitted;
@@ -53,26 +54,27 @@ public partial class OverridePanelViewModel : ObservableObject
     [ObservableProperty]
     private int _selectedTab;
 
-    /// <summary>
-    /// Read-only original XML — generated from the latest curve snapshot.
-    /// </summary>
     [ObservableProperty]
     private string _originalXml = "";
 
-    /// <summary>
-    /// Editable override XML — pre-loaded with original, user edits and applies.
-    /// </summary>
     [ObservableProperty]
     private string _overrideXml = "";
 
     [ObservableProperty]
     private bool _isOverrideActive;
 
+    // New-tenor input fields
+    [ObservableProperty]
+    private string _newTenorLabel = "";
+
+    [ObservableProperty]
+    private string _newTenorRate = "";
+
     public ObservableCollection<TenorOverrideItem> Tenors { get; } = new();
 
     public OverridePanelViewModel()
     {
-        foreach (var label in _tenorLabels)
+        foreach (var label in _defaultTenorLabels)
         {
             Tenors.Add(new TenorOverrideItem { Label = label, CurrentRate = 0 });
         }
@@ -80,34 +82,71 @@ public partial class OverridePanelViewModel : ObservableObject
 
     /// <summary>
     /// Called by PricingPageViewModel when a new curve snapshot arrives.
-    /// Updates current rates in the params tab and regenerates original XML.
+    /// Updates current rates for default tenors and regenerates XML.
     /// </summary>
     public void UpdateRates(CurveSnapshot snapshot)
     {
         var fwdSeries = snapshot.Series.FirstOrDefault(s => s.Name == "Instantaneous Forward Rate");
         if (fwdSeries == null) return;
 
-        for (int i = 0; i < Tenors.Count && i < fwdSeries.Values.Count; i++)
+        // Only update default (non-custom) tenors — custom ones keep user-set rate
+        int defaultCount = Math.Min(_defaultTenorLabels.Length, fwdSeries.Values.Count);
+        for (int i = 0; i < Tenors.Count && i < defaultCount; i++)
         {
             Tenors[i].CurrentRate = fwdSeries.Values[i];
         }
 
-        // Regenerate original XML from snapshot
         OriginalXml = GenerateCurveXml(snapshot);
 
-        // If override XML hasn't been set yet, pre-load with original
         if (string.IsNullOrEmpty(OverrideXml) && !IsOverrideActive)
         {
             OverrideXml = OriginalXml;
         }
     }
 
+    // ─── Add / Remove Tenor ──────────────────────────────
+
+    [RelayCommand]
+    private void AddTenor()
+    {
+        string label = NewTenorLabel?.Trim() ?? "";
+        if (string.IsNullOrEmpty(label)) return;
+
+        // Parse rate
+        if (!double.TryParse(NewTenorRate, out double rate))
+            rate = 0;
+
+        // Check for duplicate
+        if (Tenors.Any(t => t.Label.Equals(label, StringComparison.OrdinalIgnoreCase)))
+            return;
+
+        Tenors.Add(new TenorOverrideItem
+        {
+            Label = label,
+            CurrentRate = rate,
+            OverrideRate = rate,
+            IsCustom = true
+        });
+
+        NewTenorLabel = "";
+        NewTenorRate = "";
+    }
+
+    [RelayCommand]
+    private void RemoveTenor(TenorOverrideItem? tenor)
+    {
+        if (tenor == null) return;
+        if (!tenor.IsCustom) return; // cannot remove default tenors
+        Tenors.Remove(tenor);
+    }
+
+    // ─── Apply / Clear ───────────────────────────────────
+
     [RelayCommand]
     private void ApplyOverride()
     {
         if (SelectedTab == 0)
         {
-            // Structured params mode
             var overrides = Tenors
                 .Where(t => t.OverrideRate.HasValue)
                 .Select(t => (t.Label, Rate: t.OverrideRate!.Value))
@@ -126,7 +165,6 @@ public partial class OverridePanelViewModel : ObservableObject
         }
         else
         {
-            // XML override mode (tabs 1 and 2 both submit from override XML)
             if (string.IsNullOrWhiteSpace(OverrideXml)) return;
 
             OverrideSubmitted?.Invoke(new ApplyOverrideRequest
@@ -143,9 +181,7 @@ public partial class OverridePanelViewModel : ObservableObject
     private void ReloadOriginalXml()
     {
         if (!string.IsNullOrEmpty(OriginalXml))
-        {
             OverrideXml = OriginalXml;
-        }
     }
 
     [RelayCommand]
@@ -156,7 +192,6 @@ public partial class OverridePanelViewModel : ObservableObject
 
         IsOverrideActive = false;
 
-        // Restore override XML to original
         if (!string.IsNullOrEmpty(OriginalXml))
             OverrideXml = OriginalXml;
 

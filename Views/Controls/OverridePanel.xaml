@@ -33,43 +33,68 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <Grid Grid.Row="0" Margin="0,0,0,4">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="50"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="46"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="Tenor" Foreground="#8899aa" FontSize="11" FontWeight="Bold"/>
-                        <TextBlock Grid.Column="1" Text="Current" Foreground="#8899aa" FontSize="11" FontWeight="Bold" TextAlignment="Right"/>
-                        <TextBlock Grid.Column="2" Text="Override" Foreground="#8899aa" FontSize="11" FontWeight="Bold" TextAlignment="Right"/>
+                        <TextBlock Grid.Column="1" Text="Tenor" Foreground="#8899aa" FontSize="11" FontWeight="Bold"/>
+                        <TextBlock Grid.Column="2" Text="Current" Foreground="#8899aa" FontSize="11" FontWeight="Bold" TextAlignment="Right"/>
+                        <TextBlock Grid.Column="3" Text="Override" Foreground="#8899aa" FontSize="11" FontWeight="Bold" TextAlignment="Right"/>
                     </Grid>
-
+                    <!-- Tenor rows -->
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                         <ItemsControl ItemsSource="{Binding Tenors}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="{x:Type vm:TenorOverrideItem}">
-                                    <Border BorderBrush="#1a1a3e" BorderThickness="0,0,0,1" Padding="2,3">
+                                    <Border BorderBrush="#1a1a3e" BorderThickness="0,0,0,1" Padding="2,2">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="50"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="46"/>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="*"/>
                                             </Grid.ColumnDefinitions>
 
-                                            <TextBlock Grid.Column="0" Text="{Binding Label}"
+                                            <!-- Remove button (custom tenors only) -->
+                                            <Button Grid.Column="0" Content="×"
+                                                    Command="{Binding DataContext.RemoveTenorCommand,
+                                                        RelativeSource={RelativeSource AncestorType=TabControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    FontSize="13" FontWeight="Bold"
+                                                    Background="Transparent" BorderThickness="0"
+                                                    Foreground="#c44" Padding="1" Margin="0,0,3,0"
+                                                    Width="18" Height="18" Cursor="Hand"
+                                                    ToolTip="Remove this tenor">
+                                                <Button.Style>
+                                                    <Style TargetType="Button">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsCustom}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+
+                                            <TextBlock Grid.Column="1" Text="{Binding Label}"
                                                        Foreground="#aaa" FontSize="12" VerticalAlignment="Center"/>
 
-                                            <TextBlock Grid.Column="1" Text="{Binding CurrentRate, StringFormat={}{0:F4}}"
+                                            <TextBlock Grid.Column="2" Text="{Binding CurrentRate, StringFormat={}{0:F4}}"
                                                        Foreground="#5588cc" FontSize="12"
                                                        TextAlignment="Right" VerticalAlignment="Center"
                                                        Margin="0,0,6,0"/>
 
-                                            <TextBox Grid.Column="2" Text="{Binding OverrideRate, TargetNullValue=''}"
+                                            <TextBox Grid.Column="3" Text="{Binding OverrideRate, TargetNullValue=''}"
                                                      FontSize="12" Background="#0a0a2e" Foreground="#ffaa33"
                                                      TextAlignment="Right" BorderBrush="#333"
-                                                     MinWidth="55" MaxWidth="90"
+                                                     MinWidth="50" MaxWidth="85"
                                                      HorizontalAlignment="Right"
                                                      VerticalContentAlignment="Center"/>
                                         </Grid>
@@ -78,6 +103,32 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </ScrollViewer>
+
+                    <!-- Add new tenor row -->
+                    <Grid Grid.Row="2" Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="46"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBox Grid.Column="0" Text="{Binding NewTenorLabel, UpdateSourceTrigger=PropertyChanged}"
+                                 FontSize="12" Background="#0f0f2e" Foreground="#aaa"
+                                 BorderBrush="#333" Padding="2,1"
+                                 VerticalContentAlignment="Center"
+                                 ToolTip="New tenor label (e.g. 4Y)"/>
+
+                        <TextBox Grid.Column="1" Text="{Binding NewTenorRate, UpdateSourceTrigger=PropertyChanged}"
+                                 FontSize="12" Background="#0f0f2e" Foreground="#ffaa33"
+                                 BorderBrush="#333" Padding="2,1" Margin="4,0,4,0"
+                                 TextAlignment="Right" VerticalContentAlignment="Center"
+                                 ToolTip="Override rate value"/>
+
+                        <Button Grid.Column="2" Content="+ Add" Command="{Binding AddTenorCommand}"
+                                Background="#007bff" Foreground="White" Padding="6,2"
+                                FontSize="11" BorderThickness="0" Cursor="Hand"
+                                MinWidth="50"/>
+                    </Grid>
                 </Grid>
             </TabItem>
 
