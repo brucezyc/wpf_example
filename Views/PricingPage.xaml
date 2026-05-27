@@ -56,7 +56,6 @@
                 <!-- Start/Stop Buttons -->
                 <StackPanel Grid.Column="4" Orientation="Horizontal">
                     <Button Content="Start Stream" Command="{Binding StartStreamCommand}"
-                            IsEnabled="{Binding IsStreaming, Converter={x:Null}}"
                             Background="#007bff" Foreground="White" Padding="12,6"
                             Margin="0,0,6,0" FontSize="13" FontWeight="SemiBold"
                             BorderThickness="0" Cursor="Hand">
