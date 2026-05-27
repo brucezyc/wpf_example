@@ -14,15 +14,14 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        
-        // Initialize ScottPlot DataLogger
+
+        // Tab 1: Original Stream Plot setup
         _dataLogger = WpfPlot1.Plot.Add.DataLogger();
         WpfPlot1.Plot.Axes.DateTimeTicksBottom();
         WpfPlot1.Plot.Title("Live Stream Data MVP");
         WpfPlot1.Plot.YLabel("Value");
         WpfPlot1.Plot.XLabel("Time");
 
-        // Set up a timer to pull data from ViewModel and update plot at 20 FPS
         _renderTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromMilliseconds(50)
@@ -49,8 +48,7 @@ public partial class MainWindow : Window
         if (DataContext is MainViewModel vm)
         {
             bool hasNewData = false;
-            
-            // Drain the queue
+
             while (vm.NewDataQueue.TryDequeue(out MarketData? data))
             {
                 if (data != null)
@@ -62,7 +60,6 @@ public partial class MainWindow : Window
 
             if (hasNewData)
             {
-                // Request a redraw
                 WpfPlot1.Refresh();
             }
         }

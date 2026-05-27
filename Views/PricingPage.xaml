@@ -1,0 +1,175 @@
+<UserControl x:Class="WpfPlotMvp.Views.PricingPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:vm="clr-namespace:WpfPlotMvp.ViewModels"
+             xmlns:ctrls="clr-namespace:WpfPlotMvp.Views.Controls"
+             mc:Ignorable="d"
+             d:DesignHeight="600" d:DesignWidth="1000"
+             d:DataContext="{d:DesignInstance vm:PricingPageViewModel, IsDesignTimeCreatable=False}">
+    <Grid Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ═══ Header Bar ═══ -->
+        <Border Grid.Row="0" Background="#1a1a2e" CornerRadius="6" Padding="10" Margin="0,0,0,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Symbol -->
+                <TextBlock Grid.Column="0" Text="{Binding Symbol}" FontSize="20" FontWeight="Bold"
+                           Foreground="White" VerticalAlignment="Center" Margin="0,0,16,0"/>
+
+                <!-- Current Price -->
+                <Border Grid.Column="1" Background="#16213e" CornerRadius="4" Padding="10,4" Margin="0,0,16,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Price: " Foreground="#8899aa" FontSize="14"
+                                   VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="1" Text="{Binding CurrentPrice}" Foreground="#00d4aa"
+                                   FontSize="16" FontWeight="Bold" VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <!-- Spacer -->
+                <TextBlock Grid.Column="2"/>
+
+                <!-- Status -->
+                <Border Grid.Column="3" Background="#16213e" CornerRadius="4" Padding="10,4" Margin="0,0,10,0">
+                    <TextBlock Text="{Binding StatusText}" Foreground="#8899aa" FontSize="12"
+                               VerticalAlignment="Center"/>
+                </Border>
+
+                <!-- Start/Stop Buttons -->
+                <StackPanel Grid.Column="4" Orientation="Horizontal">
+                    <Button Content="Start Stream" Command="{Binding StartStreamCommand}"
+                            IsEnabled="{Binding IsStreaming, Converter={x:Null}}"
+                            Background="#007bff" Foreground="White" Padding="12,6"
+                            Margin="0,0,6,0" FontSize="13" FontWeight="SemiBold"
+                            BorderThickness="0" Cursor="Hand">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="IsEnabled" Value="True"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsStreaming}" Value="True">
+                                        <Setter Property="IsEnabled" Value="False"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Content="Stop" Command="{Binding StopStreamCommand}"
+                            Background="#dc3545" Foreground="White" Padding="12,6"
+                            FontSize="13" FontWeight="SemiBold" BorderThickness="0" Cursor="Hand">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="IsEnabled" Value="False"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsStreaming}" Value="True">
+                                        <Setter Property="IsEnabled" Value="True"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ═══ Main Content: Chart + Override Panel ═══ -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left: Curve Chart -->
+            <Border Grid.Column="0" Background="#0f0f23" CornerRadius="6" Padding="6" Margin="0,0,8,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Axis Selection Dropdowns -->
+                    <Grid Grid.Row="0" Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="160"/>
+                            <ColumnDefinition Width="20"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="160"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0" Text="◀ Left Y:" ForeGround="#8899aa" FontSize="12"
+                                   VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding AvailableSeries}"
+                                  SelectedItem="{Binding LeftYSeries, UpdateSourceTrigger=PropertyChanged}"
+                                  Background="#1a1a2e" Foreground="White" FontSize="12"
+                                  BorderBrush="#333" MinHeight="24"/>
+
+                        <TextBlock Grid.Column="3" Text="Right Y: ▶" Foreground="#8899aa" FontSize="12"
+                                   VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <ComboBox Grid.Column="4" ItemsSource="{Binding RightAxisOptions}"
+                                  SelectedItem="{Binding RightYSeries, UpdateSourceTrigger=PropertyChanged}"
+                                  Background="#1a1a2e" Foreground="White" FontSize="12"
+                                  BorderBrush="#333" MinHeight="24"/>
+                    </Grid>
+
+                    <!-- Curve Chart -->
+                    <ctrls:InteractiveCurveChart x:Name="CurveChart" Grid.Row="1"/>
+                </Grid>
+            </Border>
+
+            <!-- Right: Override Panel Placeholder -->
+            <Border Grid.Column="1" Background="#0f0f23" CornerRadius="6" Padding="10"
+                    MinWidth="280" MaxWidth="360">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="Override Panel" FontSize="14" FontWeight="Bold"
+                               Foreground="#ccd" Margin="0,0,0,10"/>
+
+                    <TextBlock Grid.Row="1" Text="Coming in Phase 4 — Override XML or tenor parameters to see curve impact."
+                               Foreground="#667" FontSize="12" TextWrapping="Wrap"
+                               VerticalAlignment="Center" HorizontalAlignment="Center"/>
+
+                    <Button Grid.Row="2" Content="Apply Override" IsEnabled="False"
+                            Background="#555" Foreground="#999" Padding="10,6"
+                            FontSize="13" BorderThickness="0" Margin="0,10,0,0"/>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ═══ Status Bar ═══ -->
+        <Border Grid.Row="2" Background="#1a1a2e" CornerRadius="4" Padding="8,4" Margin="0,8,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding StatusText, StringFormat='Status: {0}'}"
+                           Foreground="#667" FontSize="11"/>
+                <TextBlock Grid.Column="1" Text="{Binding Symbol, StringFormat='Symbol: {0}'}"
+                           Foreground="#667" FontSize="11"/>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>
