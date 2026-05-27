@@ -1,67 +1,96 @@
 using System;
 using System.Windows;
-using System.Windows.Threading;
-using WpfPlotMvp.Models;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 using WpfPlotMvp.ViewModels;
+using WpfPlotMvp.Views;
 
 namespace WpfPlotMvp;
 
 public partial class MainWindow : Window
 {
-    private DispatcherTimer _renderTimer;
-    private ScottPlot.Plottables.DataLogger _dataLogger;
+    private int _pricingTabCounter;
 
     public MainWindow()
     {
         InitializeComponent();
 
-        // Tab 1: Original Stream Plot setup
-        _dataLogger = WpfPlot1.Plot.Add.DataLogger();
-        WpfPlot1.Plot.Axes.DateTimeTicksBottom();
-        WpfPlot1.Plot.Title("Live Stream Data MVP");
-        WpfPlot1.Plot.YLabel("Value");
-        WpfPlot1.Plot.XLabel("Time");
-
-        _renderTimer = new DispatcherTimer
+        if (MainPageControl.DataContext is MainPageViewModel mainVm)
         {
-            Interval = TimeSpan.FromMilliseconds(50)
-        };
-        _renderTimer.Tick += RenderTimer_Tick;
-    }
-
-    private void Window_Loaded(object sender, RoutedEventArgs e)
-    {
-        _renderTimer.Start();
-    }
-
-    private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
-    {
-        _renderTimer.Stop();
-        if (DataContext is MainViewModel vm)
-        {
-            vm.StopStream();
+            mainVm.OpenChildPage += OnOpenChildPage;
         }
     }
 
-    private void RenderTimer_Tick(object? sender, EventArgs e)
+    private void OnOpenChildPage(string header, Type viewModelType)
     {
-        if (DataContext is MainViewModel vm)
+        _pricingTabCounter++;
+        string tabHeader = $"{header} #{_pricingTabCounter}";
+
+        UserControl? page = viewModelType switch
         {
-            bool hasNewData = false;
+            Type t when t == typeof(PricingPageViewModel) => new PricingPage(),
+            _ => null
+        };
 
-            while (vm.NewDataQueue.TryDequeue(out MarketData? data))
-            {
-                if (data != null)
-                {
-                    _dataLogger.Add(data.Timestamp.ToOADate(), data.Value);
-                    hasNewData = true;
-                }
-            }
+        if (page == null) return;
 
-            if (hasNewData)
-            {
-                WpfPlot1.Refresh();
-            }
+        var tabItem = BuildClosableTabItem(tabHeader, page);
+
+        MainTabControl.Items.Insert(MainTabControl.Items.Count - 1, tabItem);
+        MainTabControl.SelectedItem = tabItem;
+    }
+
+    private static TabItem BuildClosableTabItem(string header, UserControl content)
+    {
+        var tab = new TabItem();
+
+        var headerPanel = new StackPanel { Orientation = Orientation.Horizontal };
+        var label = new TextBlock
+        {
+            Text = header,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 6, 0)
+        };
+        var closeBtn = new Button
+        {
+            Content = "×",
+            FontSize = 14,
+            FontWeight = FontWeights.Bold,
+            Background = null,
+            BorderThickness = new Thickness(0),
+            Cursor = Cursors.Hand,
+            Foreground = Brushes.Gray,
+            Width = 20,
+            Height = 20,
+            Padding = new Thickness(0),
+            ToolTip = "Close"
+        };
+
+        closeBtn.Click += (_, _) => CloseTab(tab, content);
+        label.MouseDown += (_, e) =>
+        {
+            if (e.ChangedButton == MouseButton.Middle && e.ButtonState == MouseButtonState.Pressed)
+                CloseTab(tab, content);
+        };
+
+        headerPanel.Children.Add(label);
+        headerPanel.Children.Add(closeBtn);
+        tab.Header = headerPanel;
+        tab.Content = content;
+
+        return tab;
+    }
+
+    private static void CloseTab(TabItem tab, UserControl content)
+    {
+        // Validate the tab is still in the TabControl before removing
+        // (prevents double-close from label click + close button)
+        if (tab.Parent is TabControl tc && tc.Items.Contains(tab))
+        {
+            tc.Items.Remove(tab);
+            if (content.DataContext is IDisposable disposable)
+                disposable.Dispose();
         }
     }
 }
