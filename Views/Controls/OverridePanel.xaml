@@ -14,16 +14,15 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Header -->
         <TextBlock Grid.Row="0" Text="Override Panel" FontSize="14" FontWeight="Bold"
                    Foreground="#ccd" Margin="0,0,0,8"/>
 
-        <!-- Tab Control -->
+        <!-- 3-Tab Control -->
         <TabControl Grid.Row="1" SelectedIndex="{Binding SelectedTab}">
             <TabControl.Resources>
                 <Style TargetType="TabItem">
-                    <Setter Property="FontSize" Value="12"/>
-                    <Setter Property="Padding" Value="8,3"/>
+                    <Setter Property="FontSize" Value="11"/>
+                    <Setter Property="Padding" Value="6,2"/>
                     <Setter Property="FontWeight" Value="SemiBold"/>
                 </Style>
             </TabControl.Resources>
@@ -36,7 +35,6 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <!-- Header row -->
                     <Grid Grid.Row="0" Margin="0,0,0,4">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="50"/>
@@ -48,7 +46,6 @@
                         <TextBlock Grid.Column="2" Text="Override" Foreground="#8899aa" FontSize="11" FontWeight="Bold" TextAlignment="Right"/>
                     </Grid>
 
-                    <!-- Tenor rows -->
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                         <ItemsControl ItemsSource="{Binding Tenors}">
                             <ItemsControl.ItemTemplate>
@@ -72,7 +69,7 @@
                                             <TextBox Grid.Column="2" Text="{Binding OverrideRate, TargetNullValue=''}"
                                                      FontSize="12" Background="#0a0a2e" Foreground="#ffaa33"
                                                      TextAlignment="Right" BorderBrush="#333"
-                                                     MinWidth="60" MaxWidth="100"
+                                                     MinWidth="55" MaxWidth="90"
                                                      HorizontalAlignment="Right"
                                                      VerticalContentAlignment="Center"/>
                                         </Grid>
@@ -84,7 +81,7 @@
                 </Grid>
             </TabItem>
 
-            <!-- Tab 1: XML Editor -->
+            <!-- Tab 1: XML (view-only) -->
             <TabItem Header="XML">
                 <Grid Margin="0,6,0,0">
                     <Grid.RowDefinitions>
@@ -92,23 +89,55 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0" Text="Paste XML snippet to override curve parameters."
+                    <TextBlock Grid.Row="0" Text="Original curve configuration (read-only)"
                                Foreground="#667" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,6"/>
 
-                    <TextBox Grid.Row="1" Text="{Binding XmlText, UpdateSourceTrigger=PropertyChanged}"
+                    <TextBox Grid.Row="1" Text="{Binding OriginalXml, Mode=OneWay}"
+                             IsReadOnly="True"
                              AcceptsReturn="True" AcceptsTab="True"
-                             FontFamily="Consolas" FontSize="12"
+                             FontFamily="Consolas" FontSize="11"
+                             Background="#0a0a1a" Foreground="#889"
+                             BorderBrush="#333" BorderThickness="1"
+                             Padding="4" SpellCheck.IsEnabled="False"/>
+                </Grid>
+            </TabItem>
+
+            <!-- Tab 2: XML (editable override) -->
+            <TabItem Header="XML*">
+                <Grid Margin="0,6,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Edit XML and apply as override"
+                                   Foreground="#667" FontSize="11" VerticalAlignment="Center"/>
+                        <Button Grid.Column="1" Content="↺ Reload Original"
+                                Command="{Binding ReloadOriginalXmlCommand}"
+                                Background="#444" Foreground="#ccc" Padding="6,2"
+                                FontSize="10" BorderThickness="0" Cursor="Hand"
+                                HorizontalAlignment="Right"/>
+                    </Grid>
+
+                    <TextBox Grid.Row="1" Text="{Binding OverrideXml, UpdateSourceTrigger=PropertyChanged}"
+                             AcceptsReturn="True" AcceptsTab="True"
+                             FontFamily="Consolas" FontSize="11"
                              Background="#0a0a2e" Foreground="#ccd"
                              BorderBrush="#333" BorderThickness="1"
-                             Padding="6" SpellCheck.IsEnabled="False"/>
+                             Padding="4" SpellCheck.IsEnabled="False"/>
                 </Grid>
             </TabItem>
         </TabControl>
 
         <!-- Buttons -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,10,0,0" HorizontalAlignment="Stretch">
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,8,0,0" HorizontalAlignment="Stretch">
             <Button Content="Apply Override" Command="{Binding ApplyOverrideCommand}"
-                    Background="#28a745" Foreground="White" Padding="8,6" FontSize="12"
+                    Background="#28a745" Foreground="White" Padding="8,5" FontSize="12"
                     BorderThickness="0" Cursor="Hand" HorizontalAlignment="Stretch" MinWidth="100">
                 <Button.Style>
                     <Style TargetType="Button">
@@ -122,14 +151,14 @@
                 </Button.Style>
             </Button>
             <Button Content="Clear" Command="{Binding ClearOverrideCommand}"
-                    Background="#6c757d" Foreground="White" Padding="8,6" FontSize="12"
-                    BorderThickness="0" Cursor="Hand" Margin="6,0,0,0" MinWidth="80"
+                    Background="#6c757d" Foreground="White" Padding="8,5" FontSize="12"
+                    BorderThickness="0" Cursor="Hand" Margin="6,0,0,0" MinWidth="70"
                     IsEnabled="{Binding IsOverrideActive}"/>
         </StackPanel>
 
-        <!-- Status indicator -->
-        <Border Grid.Row="2" Background="#1a2e1a" CornerRadius="4" Padding="6,3"
-                Margin="0,40,0,0">
+        <!-- Override active indicator -->
+        <Border Grid.Row="2" Background="#1a2e1a" CornerRadius="4" Padding="6,2"
+                Margin="0,36,0,0">
             <Border.Style>
                 <Style TargetType="Border">
                     <Setter Property="Visibility" Value="Collapsed"/>
@@ -140,7 +169,7 @@
                     </Style.Triggers>
                 </Style>
             </Border.Style>
-            <TextBlock Text="Override Active" Foreground="#8c8" FontSize="11"
+            <TextBlock Text="✓ Override Active" Foreground="#8c8" FontSize="11"
                        HorizontalAlignment="Center"/>
         </Border>
     </Grid>

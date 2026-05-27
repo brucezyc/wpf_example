@@ -40,28 +40,30 @@ public class TenorOverrideItem : ObservableObject
 
 /// <summary>
 /// ViewModel for the override panel (right side of PricingPage).
-/// Supports two modes: XML snippet editing and structured tenor-level overrides.
+/// Three tabs: Params, XML (view-only), XML (editable override).
 /// </summary>
 public partial class OverridePanelViewModel : ObservableObject
 {
     private readonly string[] _tenorLabels =
         { "1W", "1M", "2M", "3M", "6M", "9M", "1Y", "2Y", "3Y", "5Y", "7Y", "10Y", "15Y", "20Y", "30Y" };
 
-    /// <summary>
-    /// Fired when user clicks Apply — PricingPageViewModel sends to worker.
-    /// </summary>
     public event Action<ApplyOverrideRequest>? OverrideSubmitted;
-
-    /// <summary>
-    /// Fired when user clicks Clear.
-    /// </summary>
     public event Action? OverrideCleared;
 
     [ObservableProperty]
-    private int _selectedTab;   // 0 = Structured params, 1 = XML
+    private int _selectedTab;
 
+    /// <summary>
+    /// Read-only original XML — generated from the latest curve snapshot.
+    /// </summary>
     [ObservableProperty]
-    private string _xmlText = "";
+    private string _originalXml = "";
+
+    /// <summary>
+    /// Editable override XML — pre-loaded with original, user edits and applies.
+    /// </summary>
+    [ObservableProperty]
+    private string _overrideXml = "";
 
     [ObservableProperty]
     private bool _isOverrideActive;
@@ -77,8 +79,8 @@ public partial class OverridePanelViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Called by PricingPageViewModel when a new curve snapshot arrives,
-    /// to update the current rates shown in the override panel.
+    /// Called by PricingPageViewModel when a new curve snapshot arrives.
+    /// Updates current rates in the params tab and regenerates original XML.
     /// </summary>
     public void UpdateRates(CurveSnapshot snapshot)
     {
@@ -88,6 +90,15 @@ public partial class OverridePanelViewModel : ObservableObject
         for (int i = 0; i < Tenors.Count && i < fwdSeries.Values.Count; i++)
         {
             Tenors[i].CurrentRate = fwdSeries.Values[i];
+        }
+
+        // Regenerate original XML from snapshot
+        OriginalXml = GenerateCurveXml(snapshot);
+
+        // If override XML hasn't been set yet, pre-load with original
+        if (string.IsNullOrEmpty(OverrideXml) && !IsOverrideActive)
+        {
+            OverrideXml = OriginalXml;
         }
     }
 
@@ -104,7 +115,6 @@ public partial class OverridePanelViewModel : ObservableObject
 
             if (overrides.Count == 0) return;
 
-            // Serialize as JSON-like payload
             var payload = string.Join(";",
                 overrides.Select(o => $"{o.Label}={o.Rate:F4}"));
 
@@ -116,17 +126,26 @@ public partial class OverridePanelViewModel : ObservableObject
         }
         else
         {
-            // XML mode
-            if (string.IsNullOrWhiteSpace(XmlText)) return;
+            // XML override mode (tabs 1 and 2 both submit from override XML)
+            if (string.IsNullOrWhiteSpace(OverrideXml)) return;
 
             OverrideSubmitted?.Invoke(new ApplyOverrideRequest
             {
                 OverrideType = "XmlSnippet",
-                Payload = XmlText
+                Payload = OverrideXml
             });
         }
 
         IsOverrideActive = true;
+    }
+
+    [RelayCommand]
+    private void ReloadOriginalXml()
+    {
+        if (!string.IsNullOrEmpty(OriginalXml))
+        {
+            OverrideXml = OriginalXml;
+        }
     }
 
     [RelayCommand]
@@ -135,32 +154,39 @@ public partial class OverridePanelViewModel : ObservableObject
         foreach (var tenor in Tenors)
             tenor.ClearOverride();
 
-        XmlText = "";
         IsOverrideActive = false;
+
+        // Restore override XML to original
+        if (!string.IsNullOrEmpty(OriginalXml))
+            OverrideXml = OriginalXml;
+
         OverrideCleared?.Invoke();
     }
 
-    /// <summary>
-    /// Parse a "Label1=Rate1;Label2=Rate2" payload into per-tenor override values.
-    /// Called by PricingPageViewModel when re-applying state or syncing.
-    /// </summary>
-    public void ApplyPayload(string payload)
+    // ─── XML Generation ──────────────────────────────────
+
+    private string GenerateCurveXml(CurveSnapshot snapshot)
     {
-        if (string.IsNullOrEmpty(payload)) return;
+        var fwdSeries = snapshot.Series.FirstOrDefault(s => s.Name == "Instantaneous Forward Rate");
+        if (fwdSeries == null) return "<!-- No curve data -->";
 
-        var parts = payload.Split(';', StringSplitOptions.RemoveEmptyEntries);
-        foreach (var part in parts)
+        var sb = new StringBuilder();
+        sb.AppendLine("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
+        sb.AppendLine("<curveModel>");
+        sb.AppendLine("  <metadata>");
+        sb.AppendLine($"    <timestamp>{snapshot.Timestamp:yyyy-MM-dd HH:mm:ss.fff}</timestamp>");
+        sb.AppendLine("    <method>NelsonSiegel</method>");
+        sb.AppendLine("    <tau>2.5</tau>");
+        sb.AppendLine("  </metadata>");
+        sb.AppendLine("  <pillars>");
+
+        for (int i = 0; i < fwdSeries.Values.Count && i < snapshot.TenorLabels.Count; i++)
         {
-            var kv = part.Split('=');
-            if (kv.Length != 2) continue;
-            if (!double.TryParse(kv[1], out double rate)) continue;
-
-            var tenor = Tenors.FirstOrDefault(t =>
-                t.Label.Equals(kv[0], StringComparison.OrdinalIgnoreCase));
-            if (tenor != null)
-                tenor.OverrideRate = rate;
+            sb.AppendLine($"    <pillar tenor=\"{snapshot.TenorLabels[i]}\">{fwdSeries.Values[i]:F4}</pillar>");
         }
 
-        IsOverrideActive = true;
+        sb.AppendLine("  </pillars>");
+        sb.AppendLine("</curveModel>");
+        return sb.ToString();
     }
 }

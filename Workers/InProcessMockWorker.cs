@@ -88,12 +88,43 @@ public class InProcessMockWorker : IWorkerClient
         }
         else if (request.OverrideType == "XmlSnippet")
         {
-            // For mock: just use XML value as a flat rate for 10Y tenor
-            if (double.TryParse(request.Payload, out double rate))
+            // Parse XML to extract pillar overrides
+            var overrides = new System.Collections.Generic.List<(int idx, double rate)>();
+            var xml = request.Payload;
+
+            foreach (var tenor in MockCurveGenerator.DefaultTenors)
             {
-                _currentOverrides = new[] { (9, rate) }; // index 9 = 5Y
+                // Look for <pillar tenor="1M">value</pillar>
+                var searchStr = $"tenor=\"{tenor.Label}\"";
+                int idx = xml.IndexOf(searchStr, StringComparison.OrdinalIgnoreCase);
+                if (idx < 0) continue;
+
+                // Find the value between > and </
+                int valueStart = xml.IndexOf('>', idx + searchStr.Length);
+                int valueEnd = xml.IndexOf('<', valueStart + 1);
+                if (valueStart < 0 || valueEnd < 0) continue;
+
+                valueStart++; // skip '>'
+                string valueStr = xml[valueStart..valueEnd].Trim();
+                if (double.TryParse(valueStr, out double rate))
+                {
+                    // Find tenor index by label
+                    for (int i = 0; i < MockCurveGenerator.DefaultTenors.Length; i++)
+                    {
+                        if (MockCurveGenerator.DefaultTenors[i].Label.Equals(tenor.Label, StringComparison.OrdinalIgnoreCase))
+                        {
+                            overrides.Add((i, rate));
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (overrides.Count > 0)
+            {
+                _currentOverrides = overrides.ToArray();
                 _overrideActive = true;
-                EmitStatus(WorkerStatus.OverrideActive, "XML override applied");
+                EmitStatus(WorkerStatus.OverrideActive, $"XML override: {overrides.Count} tenors");
             }
         }
 
