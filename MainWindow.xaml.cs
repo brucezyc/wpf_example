@@ -37,7 +37,7 @@ public partial class MainWindow : Window
 
         var tabItem = BuildClosableTabItem(tabHeader, page);
 
-        MainTabControl.Items.Insert(MainTabControl.Items.Count - 1, tabItem);
+        MainTabControl.Items.Insert(MainTabControl.Items.Count, tabItem);
         MainTabControl.SelectedItem = tabItem;
     }
 
