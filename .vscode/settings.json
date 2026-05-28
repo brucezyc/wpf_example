@@ -1,0 +1,18 @@
+{
+    "github.copilot.chat.agent.enabled": true,
+    "github.copilot.chat.codeGeneration.instructions": [
+        {
+            "file": ".github/copilot-instructions.md"
+        }
+    ],
+    "github.copilot.editor.enableAutoCompletions": true,
+    "editor.suggestSelection": "first",
+    "editor.inlineSuggest.enabled": true,
+    "[csharp]": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "ms-dotnettools.csharp"
+    },
+    "[xml]": {
+        "editor.formatOnSave": true
+    }
+}

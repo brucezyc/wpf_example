@@ -1,0 +1,303 @@
+{
+	// VS Code Snippets for WPF Quant Desktop
+	// Install: copy to .vscode/wpf.code-snippets
+	// Usage: type prefix (e.g. "wpf-vm") and press Tab
+
+	"WPF ViewModel (CommunityToolkit.Mvvm)": {
+		"prefix": "wpf-vm",
+		"body": [
+			"using System;",
+			"using System.Threading.Tasks;",
+			"using System.Windows;",
+			"using CommunityToolkit.Mvvm.ComponentModel;",
+			"using CommunityToolkit.Mvvm.Input;",
+			"using WpfPlotMvp.Protocols;",
+			"using WpfPlotMvp.Workers;",
+			"",
+			"namespace WpfPlotMvp.ViewModels;",
+			"",
+			"public partial class ${1:NewPage}ViewModel : ObservableObject, IDisposable",
+			"{",
+			"    private readonly IWorkerClient _worker;",
+			"",
+			"    [ObservableProperty]",
+			"    private string _statusText = \"Idle\";",
+			"",
+			"    [ObservableProperty]",
+			"    private bool _isStreaming;",
+			"",
+			"    public ${1:NewPage}ViewModel()",
+			"        : this(new InProcessMockWorker())",
+			"    { }",
+			"",
+			"    public ${1:NewPage}ViewModel(IWorkerClient worker)",
+			"    {",
+			"        _worker = worker;",
+			"        _worker.SnapshotReceived += OnSnapshotReceived;",
+			"        _worker.StatusChanged += OnStatusChanged;",
+			"        _worker.PriceTickReceived += OnPriceTick;",
+			"    }",
+			"",
+			"    [RelayCommand]",
+			"    private async Task StartStream()",
+			"    {",
+			"        if (IsStreaming) return;",
+			"        IsStreaming = true;",
+			"        try { await _worker.StartAsync(\"${2:SYMBOL}\", \"<config/>\", new CancellationTokenSource().Token); }",
+			"        catch (Exception ex) { StatusText = $\"Error: {ex.Message}\"; IsStreaming = false; }",
+			"    }",
+			"",
+			"    [RelayCommand]",
+			"    private async Task StopStream()",
+			"    {",
+			"        if (!IsStreaming) return;",
+			"        IsStreaming = false;",
+			"        await _worker.StopAsync();",
+			"        StatusText = \"Stopped\";",
+			"    }",
+			"",
+			"    private void OnSnapshotReceived(object? sender, CurveSnapshot snapshot)",
+			"    {",
+			"        Application.Current.Dispatcher.Invoke(() => { RequestChartUpdate(); });",
+			"    }",
+			"",
+			"    private void OnStatusChanged(object? sender, StatusMessage msg)",
+			"    {",
+			"        Application.Current.Dispatcher.Invoke(() => {",
+			"            StatusText = !string.IsNullOrEmpty(msg.Detail) ? $\"{msg.Status}: {msg.Detail}\" : msg.Status.ToString();",
+			"        });",
+			"    }",
+			"",
+			"    private void OnPriceTick(object? sender, double price)",
+			"    {",
+			"        Application.Current.Dispatcher.Invoke(() => { ${3:/* update price display */} });",
+			"    }",
+			"",
+			"    public Action<List<CurveSnapshot>, string, string>? UpdateChartAction { get; set; }",
+			"    private bool _chartPending;",
+			"    private void RequestChartUpdate()",
+			"    {",
+			"        if (_chartPending) return;",
+			"        _chartPending = true;",
+			"        Application.Current.Dispatcher.BeginInvoke(new Action(() => { _chartPending = false; UpdateChartAction?.Invoke(new(), \"\", \"\"); }));",
+			"    }",
+			"",
+			"    public void Dispose() { _worker.Dispose(); }",
+			"}"
+		],
+		"description": "New ViewModel with IWorkerClient + CommunityToolkit.Mvvm"
+	},
+
+	"WPF PricingPage XAML": {
+		"prefix": "wpf-page-xaml",
+		"body": [
+			"<UserControl x:Class=\"WpfPlotMvp.Views.${1:PricingPage}\"",
+			"             xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"",
+			"             xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"",
+			"             xmlns:ctrls=\"clr-namespace:WpfPlotMvp.Views.Controls\"",
+			"             xmlns:vm=\"clr-namespace:WpfPlotMvp.ViewModels\"",
+			"             d:DataContext=\"{d:DesignInstance vm:${2:PricingPage}ViewModel}\">",
+			"    <Grid Margin=\"8\">",
+			"        <Grid.RowDefinitions>",
+			"            <RowDefinition Height=\"Auto\"/>",
+			"            <RowDefinition Height=\"*\"/>",
+			"            <RowDefinition Height=\"Auto\"/>",
+			"        </Grid.RowDefinitions>",
+			"",
+			"        <!-- Header Bar -->",
+			"        <Border Grid.Row=\"0\" Background=\"#1a1a2e\" CornerRadius=\"6\" Padding=\"10\" Margin=\"0,0,0,8\">",
+			"            <Grid>",
+			"                <Grid.ColumnDefinitions>",
+			"                    <ColumnDefinition Width=\"Auto\"/>",
+			"                    <ColumnDefinition Width=\"*\"/>",
+			"                    <ColumnDefinition Width=\"Auto\"/>",
+			"                </Grid.ColumnDefinitions>",
+			"                <TextBlock Grid.Column=\"0\" Text=\"{Binding ${3:Symbol}}\" FontSize=\"20\" FontWeight=\"Bold\" Foreground=\"White\" VerticalAlignment=\"Center\" Margin=\"0,0,16,0\"/>",
+			"                <Border Grid.Column=\"2\" Background=\"#16213e\" CornerRadius=\"4\" Padding=\"10,4\">",
+			"                    <TextBlock Text=\"{Binding StatusText}\" Foreground=\"#8899aa\" FontSize=\"12\" VerticalAlignment=\"Center\"/>",
+			"                </Border>",
+			"            </Grid>",
+			"        </Border>",
+			"",
+			"        <!-- Main Content -->",
+			"        <Grid Grid.Row=\"1\">",
+			"            <Grid.ColumnDefinitions>",
+			"                <ColumnDefinition Width=\"*\"/>",
+			"            </Grid.ColumnDefinitions>",
+			"            <Border Grid.Column=\"0\" Background=\"#0f0f23\" CornerRadius=\"6\" Padding=\"6\">",
+			"                <ctrls:InteractiveCurveChart x:Name=\"CurveChart\"/>",
+			"            </Border>",
+			"        </Grid>",
+			"",
+			"        <!-- Status Bar -->",
+			"        <Border Grid.Row=\"2\" Background=\"#1a1a2e\" CornerRadius=\"4\" Padding=\"8,4\" Margin=\"0,8,0,0\">",
+			"            <TextBlock Text=\"{Binding StatusText, StringFormat='Status: {0}'}\" Foreground=\"#667\" FontSize=\"11\"/>",
+			"        </Border>",
+			"    </Grid>",
+			"</UserControl>"
+		],
+		"description": "New PricingPage XAML with header + chart + status bar"
+	},
+
+	"WPF PricingPage Code-behind (CRITICAL — must wire UpdateChartAction)": {
+		"prefix": "wpf-page-cs",
+		"body": [
+			"using System.Windows.Controls;",
+			"using WpfPlotMvp.ViewModels;",
+			"",
+			"namespace WpfPlotMvp.Views;",
+			"",
+			"public partial class ${1:PricingPage} : UserControl",
+			"{",
+			"    public ${1:PricingPage}()",
+			"        : this(new ${2:PricingPage}ViewModel())",
+			"    { }",
+			"",
+			"    public ${1:PricingPage}(${2:PricingPage}ViewModel viewModel)",
+			"    {",
+			"        InitializeComponent();",
+			"        DataContext = viewModel;",
+			"        // ★ CRITICAL: wire chart update or chart stays blank",
+			"        viewModel.UpdateChartAction = CurveChart.UpdateChart;",
+			"    }",
+			"}"
+		],
+		"description": "New PricingPage code-behind with UpdateChartAction wiring"
+	},
+
+	"WPF MainWindow Tab Registration": {
+		"prefix": "wpf-tab-register",
+		"body": [
+			"// Add to MainWindow.OnOpenChildPage switch:",
+			"Type t when t == typeof(${1:PricingPage}ViewModel) => new ${1:PricingPage}(),"
+		],
+		"description": "Register new page in MainWindow's OnOpenChildPage switch"
+	},
+
+	"WPF OverridePanel Apply Payload Builder": {
+		"prefix": "wpf-override-payload",
+		"body": [
+			"// Build override payload string for ApplyOverrideRequest",
+			"var parts = new List<string>();",
+			"foreach (var t in Tenors.Where(t => t.OverrideRate.HasValue))",
+			"    parts.Add($\"{t.Label}={t.OverrideRate!.Value:F4}\");",
+			"foreach (var label in _removedTenorLabels)",
+			"    parts.Add(label);",
+			"var payload = string.Join(\";\", parts);",
+			"OverrideSubmitted?.Invoke(new ApplyOverrideRequest",
+			"{",
+			"    OverrideType = \"ParamOverride\",",
+			"    Payload = payload",
+			"});"
+		],
+		"description": "Build override payload string from TenorOverrideItems"
+	},
+
+	"WPF Worker Event Marshal (UI Thread)": {
+		"prefix": "wpf-dispatcher",
+		"body": [
+			"Application.Current.Dispatcher.Invoke(() =>",
+			"{",
+			"    ${1:/* update UI properties here */}",
+			"});"
+		],
+		"description": "Marshal worker event to UI thread via Dispatcher.Invoke"
+	},
+
+	"WPF ScottPlot 5 Chart Update": {
+		"prefix": "wpf-chart-update",
+		"body": [
+			"var plot = PlotControl.Plot;",
+			"plot.Clear();",
+			"",
+			"foreach (var snapshot in snapshots)",
+			"{",
+			"    double[] xs = snapshot.TenorYearFractions.ToArray();",
+			"    var series = snapshot.Series.FirstOrDefault(s => s.Name == leftSeriesName);",
+			"    if (series?.Values.Count == xs.Length)",
+			"    {",
+			"        double[] ys = series.Values.Select(v => (double)v).ToArray();",
+			"        var scatter = plot.Add.Scatter(xs, ys);",
+			"        scatter.Color = snapshot.Tag == \"original\"",
+			"            ? new ScottPlot.Color(30, 144, 255)",
+			"            : new ScottPlot.Color(255, 69, 0);",
+			"        scatter.LineWidth = 2;",
+			"        scatter.LegendText = $\"{leftSeriesName} ({snapshot.Tag})\";",
+			"    }",
+			"}",
+			"PlotControl.Refresh();"
+		],
+		"description": "Update ScottPlot 5 chart with CurveSnapshot data"
+	},
+
+	"WPF CommunityToolkit Property + Command": {
+		"prefix": "wpf-observable",
+		"body": [
+			"[ObservableProperty]",
+			"private ${1:type} _${2:fieldName};"
+		],
+		"description": "CommunityToolkit observable property"
+	},
+
+	"WPF RelayCommand (async)": {
+		"prefix": "wpf-command-async",
+		"body": [
+			"[RelayCommand]",
+			"private async Task ${1:DoSomething}()",
+			"{",
+			"    ${2:}",
+			"}"
+		],
+		"description": "Async RelayCommand with CommunityToolkit"
+	},
+
+	"WPF RelayCommand (sync)": {
+		"prefix": "wpf-command",
+		"body": [
+			"[RelayCommand]",
+			"private void ${1:DoSomething}()",
+			"{",
+			"    ${2:}",
+			"}"
+		],
+		"description": "Sync RelayCommand with CommunityToolkit"
+	},
+
+	"WPF Start/Stop Button Pair (XAML)": {
+		"prefix": "wpf-startstop",
+		"body": [
+			"<StackPanel Orientation=\"Horizontal\">",
+			"    <Button Content=\"Start\" Command=\"{Binding ${1:StartStream}Command}\"",
+			"            Background=\"#007bff\" Foreground=\"White\" Padding=\"12,6\"",
+			"            Margin=\"0,0,6,0\" FontSize=\"13\" FontWeight=\"SemiBold\"",
+			"            BorderThickness=\"0\" Cursor=\"Hand\">",
+			"        <Button.Style>",
+			"            <Style TargetType=\"Button\">",
+			"                <Setter Property=\"IsEnabled\" Value=\"True\"/>",
+			"                <Style.Triggers>",
+			"                    <DataTrigger Binding=\"{Binding IsStreaming}\" Value=\"True\">",
+			"                        <Setter Property=\"IsEnabled\" Value=\"False\"/>",
+			"                    </DataTrigger>",
+			"                </Style.Triggers>",
+			"            </Style>",
+			"        </Button.Style>",
+			"    </Button>",
+			"    <Button Content=\"Stop\" Command=\"{Binding ${2:StopStream}Command}\"",
+			"            Background=\"#dc3545\" Foreground=\"White\" Padding=\"12,6\"",
+			"            FontSize=\"13\" FontWeight=\"SemiBold\" BorderThickness=\"0\" Cursor=\"Hand\">",
+			"        <Button.Style>",
+			"            <Style TargetType=\"Button\">",
+			"                <Setter Property=\"IsEnabled\" Value=\"False\"/>",
+			"                <Style.Triggers>",
+			"                    <DataTrigger Binding=\"{Binding IsStreaming}\" Value=\"True\">",
+			"                        <Setter Property=\"IsEnabled\" Value=\"True\"/>",
+			"                    </DataTrigger>",
+			"                </Style.Triggers>",
+			"            </Style>",
+			"        </Button.Style>",
+			"    </Button>",
+			"</StackPanel>"
+		],
+		"description": "Start/Stop button pair with IsStreaming DataTrigger"
+	}
+}
