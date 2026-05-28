@@ -1,5 +1,12 @@
 # WPF Quant Desktop — Copilot Custom Instructions
 
+## Core Principles
+
+1. **Think Before Coding** — Before generating code, trace the full data flow: XAML binding → ViewModel property → Worker event → chart update. Check each link.
+2. **Simplicity First** — MVVM is the pattern. No extra abstractions, no over-engineering, no "future-proofing." The simplest correct solution is the best.
+3. **Surgical Changes** — Edit only the files relevant to the task. Match existing naming and style. Do not refactor adjacent code.
+4. **Goal-Driven** — After every change, verify: Does it compile? Does the binding resolve? Is DataContext correct? Does the chart update?
+
 > VS Code reads `.github/copilot-instructions.md` automatically.
 > VS 2026 Agent Mode also supports this.
 > Use **Agent Mode** (not Chat) for best results.
